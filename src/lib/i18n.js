@@ -21,6 +21,7 @@ const dict = {
   'home.pill.sip': { it: 'Bevi ora un bicchiere', en: 'Drink a glass now' },
   'home.week': { it: 'Ultimi 7 giorni', en: 'Last 7 days' },
   'home.week.goal': { it: 'obiettivo {n} bicchieri', en: 'goal {n} glasses' },
+  'home.next': { it: 'prossimo bicchiere tra {when}', en: 'next glass in {when}' },
 
   'stats.title': { it: 'Statistiche', en: 'Statistics' },
   'stats.sub': { it: 'I tuoi numeri, senza fronzoli', en: 'Your numbers, no fluff' },
@@ -176,4 +177,16 @@ export const dateLocale = () => (LOCALE === 'en' ? 'en-US' : 'it-IT')
 
 export function fmtNum(n) {
   return Number(n).toLocaleString(dateLocale())
+}
+
+export function fmtCountdown(ms) {
+  if (ms == null) return null
+  const en = LOCALE === 'en'
+  if (ms <= 0) return en ? 'now' : 'adesso'
+  const m = Math.max(1, Math.round(ms / 60000))
+  if (m < 60) return en ? `in ${m} min` : `tra ${m} min`
+  const h = Math.floor(m / 60)
+  const mm = m % 60
+  const part = mm ? `${h}h ${String(mm).padStart(2, '0')}m` : `${h}h`
+  return `${en ? 'in' : 'tra'} ${part}`
 }

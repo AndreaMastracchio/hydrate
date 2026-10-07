@@ -11,6 +11,7 @@ let currentOnFire = null
 let tauriGranted = false
 let notifyState = 'off'
 let lastError = ''
+let nextReminderAt = null
 
 const isTauri = () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 
@@ -123,6 +124,7 @@ function fire() {
 function scheduleTick(getConfig) {
   cancelReminders()
   currentGetConfig = getConfig
+  nextReminderAt = null
   const cfg = getConfig()
   if (!cfg.enabled || !permissionGranted()) return
   const delay = nextReminderDelay({ ...cfg, lastReminderTs }, new Date())
@@ -130,11 +132,17 @@ function scheduleTick(getConfig) {
     timer = setTimeout(() => scheduleTick(getConfig), RECHECK_MS)
     return
   }
+  nextReminderAt = Date.now() + delay
   timer = setTimeout(() => {
+    nextReminderAt = null
     lastReminderTs = Date.now()
     if (permissionGranted()) fire()
     scheduleTick(getConfig)
   }, delay)
+}
+
+export function nextReminderIn() {
+  return nextReminderAt == null ? null : Math.max(0, nextReminderAt - Date.now())
 }
 
 export function notifyStatusText() {
