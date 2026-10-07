@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { setLocale, fmtCountdown } from './i18n.js'
+import { setLocale, fmtCountdown, t } from './i18n.js'
 
 beforeEach(() => setLocale('it'))
 
@@ -24,5 +24,19 @@ describe('fmtCountdown', () => {
     expect(fmtCountdown(0)).toBe('now')
     expect(fmtCountdown(25 * 60_000)).toBe('in 25 min')
     expect(fmtCountdown(90 * 60_000)).toBe('in 1h 30m')
+  })
+})
+
+describe('chorus home.next senza doppio "tra"', () => {
+  it('it: "prossimo bicchiere tra 25 min" una sola volta', () => {
+    setLocale('it')
+    const out = t('home.next', { when: fmtCountdown(25 * 60_000) })
+    expect(out).toBe('prossimo bicchiere tra 25 min')
+    expect(out.match(/tra/g)).toHaveLength(1)
+  })
+  it('en: "next glass in 25 min"', () => {
+    setLocale('en')
+    const out = t('home.next', { when: fmtCountdown(25 * 60_000) })
+    expect(out).toBe('next glass in 25 min')
   })
 })

@@ -1,7 +1,7 @@
 {
   "name": "hydrate",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "App idratazione per chi sta davanti al pc: calcola da solo quanto, come e quando ricordarti di bere.",
   "repository": {
     "type": "git",
