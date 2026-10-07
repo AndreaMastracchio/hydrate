@@ -149,6 +149,14 @@ export default function App() {
       const mlLeft = Math.max(0, goalMl - total)
       const pct = Math.min(100, Math.round((total / goalMl) * 100))
       const completato = total >= goalMl
+      const nextIn = nextReminderIn()
+      const later = completato
+        ? ''
+        : dueRef.current
+          ? '⏳ adesso'
+          : nextIn == null
+            ? ''
+            : `⏳ ${fmtCountdown(nextIn)}`
       const start = new Date(now)
       start.setHours(s.settings.startHour, 0, 0, 0)
       const end = new Date(now)
@@ -162,9 +170,7 @@ export default function App() {
       }
       const title = completato
         ? t('tray.done')
-        : dueRef.current
-          ? `💧 ${pct}%`
-          : `${pct}%`
+        : `${later} ${pct}%`.trim()
       const { invoke } = await import('@tauri-apps/api/core')
       await invoke('tray_update', {
         title,
