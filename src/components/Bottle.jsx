@@ -1,3 +1,5 @@
+import { t } from '../lib/i18n.js'
+
 const BOTTLE_PATH =
   'M42 10 h16 v14 q0 8 8 14 q12 9 14 26 v96 q0 24 -24 24 H44 q-24 0 -24 -24 V64 q2 -17 14 -26 q8 -6 8 -14 z'
 const WAVE_PATH =
@@ -10,7 +12,7 @@ export default function Bottle({ pct }) {
   const p = Math.max(0, Math.min(100, pct))
   const level = BODY_BOTTOM - (p / 100) * (BODY_BOTTOM - BODY_TOP)
   return (
-    <svg viewBox="0 0 100 210" className="h-56 w-auto" role="img" aria-label={`Bottiglia piena al ${Math.round(p)}%`}>
+    <svg viewBox="0 0 100 210" className="h-56 w-auto" role="img" aria-label={t('bottle.aria', { p: Math.round(p) })}>
       <defs>
         <clipPath id="bottleClip">
           <path d={BOTTLE_PATH} />

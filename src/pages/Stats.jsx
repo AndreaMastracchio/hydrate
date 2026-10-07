@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import BarChart from '../components/BarChart.jsx'
 import Heatmap from '../components/Heatmap.jsx'
 import { weeklyBars, currentStreak, bestStreak, completionRate } from '../lib/hydrate.js'
+import { t, fmtNum } from '../lib/i18n.js'
 
 function Kpi({ label, value }) {
   return (
@@ -25,48 +26,48 @@ export default function Stats({ state, goal, goalGlasses }) {
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-lg font-semibold text-slate-100">Statistiche</h1>
-        <p className="text-xs text-slate-500">I tuoi numeri, senza fronzoli</p>
+        <h1 className="text-lg font-semibold text-slate-100">{t('stats.title')}</h1>
+        <p className="text-xs text-slate-500">{t('stats.sub')}</p>
       </header>
 
       <div className="grid grid-cols-2 gap-3">
-        <Kpi label="Serie attuale" value={`${streak} gg`} />
-        <Kpi label="Serie migliore" value={`${best} gg`} />
-        <Kpi label="Media 7 giorni" value={`${avg7} ml`} />
-        <Kpi label="Obiettivi 30 gg" value={`${rate30}%`} />
+        <Kpi label={t('kpi.streak')} value={t('home.streak', { n: streak })} />
+        <Kpi label={t('kpi.best')} value={t('home.streak', { n: best })} />
+        <Kpi label={t('kpi.avg')} value={`${fmtNum(avg7)} ml`} />
+        <Kpi label={t('kpi.rate')} value={`${rate30}%`} />
       </div>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-medium text-slate-300">Ultimi 7 giorni</h2>
-          <span className="text-xs text-slate-500">obiettivo {goalGlasses} bicchieri</span>
+          <h2 className="text-sm font-medium text-slate-300">{t('stats.week7')}</h2>
+          <span className="text-xs text-slate-500">{t('home.week.goal', { n: goalGlasses })}</span>
         </div>
         <BarChart bars={bars7} goal={goal} height={110} labels />
       </section>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-medium text-slate-300">Ultimi 30 giorni</h2>
-          <span className="text-xs text-slate-500">obiettivo {goalGlasses} bicchieri</span>
+          <h2 className="text-sm font-medium text-slate-300">{t('stats.week30')}</h2>
+          <span className="text-xs text-slate-500">{t('home.week.goal', { n: goalGlasses })}</span>
         </div>
         <BarChart bars={bars30} goal={goal} height={110} />
       </section>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
-        <h2 className="mb-3 text-sm font-medium text-slate-300">Mappa del mese</h2>
+        <h2 className="mb-3 text-sm font-medium text-slate-300">{t('stats.month')}</h2>
         <Heatmap bars={bars30} goal={goal} />
         <div className="mt-3 flex items-center gap-3 text-[10px] text-slate-500">
           <span className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded bg-slate-800" /> vuoto
+            <span className="h-2.5 w-2.5 rounded bg-slate-800" /> {t('leg.empty')}
           </span>
           <span className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded bg-cyan-900" /> sotto
+            <span className="h-2.5 w-2.5 rounded bg-cyan-900" /> {t('leg.low')}
           </span>
           <span className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded bg-cyan-700" /> quasi
+            <span className="h-2.5 w-2.5 rounded bg-cyan-700" /> {t('leg.mid')}
           </span>
           <span className="flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded bg-cyan-400" /> goal
+            <span className="h-2.5 w-2.5 rounded bg-cyan-400" /> {t('leg.hi')}
           </span>
         </div>
       </section>

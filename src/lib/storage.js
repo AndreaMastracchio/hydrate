@@ -2,9 +2,20 @@ const KEY = 'hydrate:v1'
 
 export const DEFAULTS = {
   name: '',
+  lang: 'it',
   glassMl: 250,
   entries: [],
-  settings: { enabled: false, intervalMin: 120, startHour: 9, endHour: 22, weightKg: null, activity: 'moderate' }
+  settings: {
+    enabled: false,
+    intervalMin: 60,
+    startHour: 9,
+    endHour: 22,
+    autoWindow: true,
+    autoInterval: true,
+    lastAdjusted: '',
+    weightKg: null,
+    activity: 'moderate'
+  }
 }
 
 export function loadState() {

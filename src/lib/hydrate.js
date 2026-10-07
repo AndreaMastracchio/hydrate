@@ -121,10 +121,79 @@ export function weeklyBars(entries, goal, n, today = new Date()) {
 }
 
 const ACTIVITY_FACTOR = { sedentary: 1, moderate: 1.1, active: 1.25 }
+const ACTIVITY_LABEL = { sedentary: 'Sedentario', moderate: 'Moderato', active: 'Sportivo' }
 const seasonFactor = (month) => (month >= 4 && month <= 8 ? 1.06 : month === 3 || month === 9 ? 1.03 : 1)
 
+export function mlFactors(weightKg, activity, date) {
+  const base = weightKg * 33
+  const activityFactor = ACTIVITY_FACTOR[activity] ?? 1.1
+  const season = seasonFactor(date.getMonth())
+  return { base, activityFactor, seasonFactor: season, raw: base * activityFactor * season }
+}
+
 export function individualMl(weightKg, activity, date) {
-  return weightKg * 33 * (ACTIVITY_FACTOR[activity] ?? 1.1) * seasonFactor(date.getMonth())
+  return mlFactors(weightKg, activity, date).raw
+}
+
+export function goalBreakdown(weightKg, activity, date) {
+  const f = mlFactors(weightKg, activity, date)
+  const rounded = Math.min(4000, Math.max(1500, Math.round(f.raw / 50) * 50))
+  return {
+    base: f.base,
+    activityFactor: f.activityFactor,
+    activityLabel: ACTIVITY_LABEL[activity] ?? 'Moderato',
+    seasonFactor: f.seasonFactor,
+    raw: f.raw,
+    rounded,
+    glasses: Math.ceil(rounded / 250)
+  }
+}
+
+export function activeWindow(entries, today = new Date(), fallback = { startHour: 9, endHour: 22 }) {
+  const DAYS = 30
+  const MIN_DAYS = 4
+  const WINDOW_MIN_HOURS = 11
+  const cut = new Date(today.getFullYear(), today.getMonth(), today.getDate() - DAYS).getTime()
+  const now = today.getTime()
+  const minutes = []
+  const days = new Set()
+  for (const e of entries) {
+    if (!e?.ts || e.ts > now || e.ts < cut) continue
+    const d = new Date(e.ts)
+    if (Number.isNaN(d.getTime())) continue
+    minutes.push(d.getHours() * 60 + d.getMinutes())
+    days.add(dayKey(d))
+  }
+  if (days.size < MIN_DAYS || minutes.length === 0) return fallback
+  minutes.sort((a, b) => a - b)
+  const p10 = minutes[Math.floor(minutes.length * 0.1)]
+  const p90 = minutes[Math.min(minutes.length - 1, Math.ceil(minutes.length * 0.9))]
+  let start = Math.floor(p10 / 60)
+  let end = Math.ceil(p90 / 60)
+  start = Math.max(5, start)
+  end = Math.min(23, end)
+  if (end - start < WINDOW_MIN_HOURS) {
+    end = Math.min(23, start + WINDOW_MIN_HOURS)
+    start = Math.max(5, end - WINDOW_MIN_HOURS)
+  }
+  return { startHour: start, endHour: end }
+}
+
+export function adaptedInterval(currentInterval, entries, goal, today = new Date()) {
+  const current = Math.max(30, Math.min(240, currentInterval))
+  if (!(goal > 0)) return current
+  const rates = []
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i)
+    const total = totalForDay(entries, dayKey(d))
+    if (total > 0) rates.push(Math.min(1, total / goal))
+  }
+  if (rates.length < 3) return current
+  const avg = rates.reduce((a, b) => a + b, 0) / rates.length
+  let next = current
+  if (avg >= 0.95) next = current + 30
+  else if (avg <= 0.6) next = current - 30
+  return Math.max(30, Math.min(240, next))
 }
 
 export function computeGoal(entries, today = new Date(), opts = {}) {

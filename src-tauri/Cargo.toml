@@ -24,3 +24,6 @@ log = "0.4"
 tauri = { version = "2.12.1", features = ["tray-icon"] }
 tauri-plugin-log = "2"
 tauri-plugin-notification = "2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+mac-notification-sys = "0.6.15"

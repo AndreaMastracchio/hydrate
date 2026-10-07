@@ -1,4 +1,5 @@
 import { nextReminderDelay } from './hydrate.js'
+import { t } from './i18n.js'
 
 const RECHECK_MS = 30 * 60 * 1000
 const SNOOZE_MIN = 15
@@ -6,7 +7,10 @@ const SNOOZE_MIN = 15
 let timer = null
 let lastReminderTs = 0
 let currentGetConfig = null
+let currentOnFire = null
 let tauriGranted = false
+let notifyState = 'off'
+let lastError = ''
 
 const isTauri = () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
 
@@ -31,7 +35,10 @@ export async function syncPermission() {
   if (isTauri()) {
     try {
       const { isPermissionGranted } = await import('@tauri-apps/plugin-notification')
-      tauriGranted = await isPermissionGranted()
+      // su macOS il plugin risponde null quando non è ancora stato garantito
+      // esplicitamente: in quel caso le notifiche native partono comunque,
+      // quindi lo trattiamo come concesso. Solo un "denied" esplicito le blocca.
+      tauriGranted = (await isPermissionGranted()) !== false
     } catch {
       tauriGranted = false
     }
@@ -44,12 +51,12 @@ export async function requestPermission() {
     const { isPermissionGranted, requestPermission: request } = await import(
       '@tauri-apps/plugin-notification'
     )
-    if (await isPermissionGranted()) {
+    if ((await isPermissionGranted()) !== false) {
       tauriGranted = true
       return 'granted'
     }
     const result = await request()
-    tauriGranted = result === 'granted'
+    tauriGranted = result !== 'denied'
     return result
   }
   if (!notificationsSupported()) return 'unsupported'
@@ -58,13 +65,13 @@ export async function requestPermission() {
 
 export function reminderOptions() {
   return {
-    body: 'È l’ora di un bicchiere 💧 Tocca «Ho bevuto» quando lo hai bevuto.',
+    body: t('notify.browser.body'),
     silent: true,
     tag: 'hydrate-reminder',
     data: { source: 'hydrate' },
     actions: [
-      { action: 'log', title: 'Ho bevuto' },
-      { action: 'later', title: 'Più tardi' }
+      { action: 'log', title: t('notify.browser.log') },
+      { action: 'later', title: t('notify.browser.later') }
     ]
   }
 }
@@ -72,8 +79,8 @@ export function reminderOptions() {
 export function snoozeReminder() {
   if (!currentGetConfig) return
   const cfg = currentGetConfig()
-  lastReminderTs = Date.now() - Math.max(0, (cfg.intervalMin - SNOOZE_MIN)) * 60000
-  startReminders(currentGetConfig)
+  lastReminderTs = Date.now() - Math.max(0, cfg.intervalMin - SNOOZE_MIN) * 60000
+  startReminders(currentGetConfig, { onFire: currentOnFire })
 }
 
 function permissionGranted() {
@@ -82,19 +89,26 @@ function permissionGranted() {
 }
 
 function fire() {
+  currentOnFire?.()
   if (isTauri()) {
-    import('@tauri-apps/plugin-notification')
-      .then(({ sendNotification }) =>
-        sendNotification({
-          title: 'Hydrate',
-          body: 'È l’ora di un bicchiere 💧 Tocca «Bevi un bicchiere» nel menu in alto.',
-          sound: 'Ping'
-        })
-      )
-      .catch(() => {})
+    notifyState = 'sending'
+    const name = currentGetConfig?.().name?.trim() || ''
+    const title = name ? t('notify.title.named', { name }) : t('notify.title.default')
+    const body = name ? t('notify.body.named') : t('notify.body.plain')
+    import('@tauri-apps/api/core')
+      .then(({ invoke }) => invoke('native_notify', { title, body }))
+      .then(() => {
+        notifyState = 'ok'
+      })
+      .catch((e) => {
+        notifyState = 'error'
+        lastError = String(e)
+        console.error('Hydrate: notifica non riuscita', e)
+      })
     return
   }
-  const n = new Notification('Hydrate', reminderOptions())
+  const name = currentGetConfig?.().name?.trim() || ''
+  const n = new Notification(name ? t('notify.title.named', { name }) : t('notify.title.default'), reminderOptions())
   n.onclick = () => {
     window.focus()
     n.close()
@@ -123,11 +137,20 @@ function scheduleTick(getConfig) {
   }, delay)
 }
 
-export function startReminders(getConfig) {
+export function notifyStatusText() {
+  if (notifyState === 'ok') return t('notify.ok')
+  if (notifyState === 'sending') return '…'
+  if (notifyState === 'error') return `✗ ${lastError}`
+  return t('notify.off')
+}
+
+export function startReminders(getConfig, options = {}) {
   cancelReminders()
+  currentOnFire = options.onFire || null
   if (isTauri()) {
     syncPermission().then((p) => {
       if (p === 'granted') scheduleTick(getConfig)
+      else console.warn('Hydrate: notifiche bloccate', p)
     })
     return
   }

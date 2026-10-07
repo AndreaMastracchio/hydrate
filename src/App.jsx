@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadState, saveState, resetState, DEFAULTS } from './lib/storage.js'
+import { addEntry, removeLastEntryOfDay, dayKey, totalForDay, currentStreak, computeGoal, activeWindow, adaptedInterval } from './lib/hydrate.js'
+import { t, setLocale } from './lib/i18n.js'
 import {
-  addEntry,
-  removeLastEntryOfDay,
-  dayKey,
-  totalForDay,
-  currentStreak,
-  computeGoal
-} from './lib/hydrate.js'
-import { startReminders, cancelReminders, snoozeReminder } from './lib/notify.js'
+  startReminders,
+  cancelReminders,
+  snoozeReminder,
+  notifyStatusText
+} from './lib/notify.js'
 import BottomNav from './components/BottomNav.jsx'
 import Home from './pages/Home.jsx'
 import Stats from './pages/Stats.jsx'
@@ -22,10 +21,25 @@ const snapToGlass = (ml, glass) => Math.ceil(ml / glass) * glass
 export default function App() {
   const [tab, setTab] = useState('home')
   const [state, setState] = useState(loadState)
+  const [due, setDue] = useState(false)
   const stateRef = useRef(state)
+  const dueRef = useRef(due)
   stateRef.current = state
+  dueRef.current = due
+
+  setLocale(state.lang)
 
   useEffect(() => saveState(state), [state])
+
+  useEffect(() => {
+    if (!state.settings.autoWindow) return undefined
+    setState((s) => {
+      if (!s.settings.autoWindow) return s
+      const w = activeWindow(s.entries, new Date(), { startHour: 9, endHour: 22 })
+      if (w.startHour === s.settings.startHour && w.endHour === s.settings.endHour) return s
+      return { ...s, settings: { ...s.settings, ...w } }
+    })
+  }, [state.entries, state.settings.autoWindow, state.settings.startHour, state.settings.endHour])
 
   const todayKey = dayKey(new Date())
   const totalToday = totalForDay(state.entries, todayKey)
@@ -45,7 +59,20 @@ export default function App() {
   const goalGlasses = Math.max(1, Math.ceil(goal / glass))
   const glassesToday = Math.floor(totalToday / glass)
 
+  useEffect(() => {
+    if (!state.settings.autoInterval) return undefined
+    const tk = dayKey(new Date())
+    if (state.settings.lastAdjusted === tk) return undefined
+    setState((s) => {
+      if (!s.settings.autoInterval) return s
+      const adjusted = adaptedInterval(s.settings.intervalMin, s.entries, goal, new Date())
+      if (adjusted === s.settings.intervalMin && s.settings.lastAdjusted === tk) return s
+      return { ...s, settings: { ...s.settings, intervalMin: adjusted, lastAdjusted: tk } }
+    })
+  }, [state.entries, goal, state.settings.autoInterval, state.settings.intervalMin, state.settings.lastAdjusted])
+
   const logGlass = useCallback(() => {
+    setDue(false)
     setState((s) => addEntry(s, { ts: Date.now(), ml: glassOf(s) }))
   }, [])
 
@@ -64,8 +91,12 @@ export default function App() {
       )
       return { ...s.settings, lastLogTs, goalMet: todayTotal >= goalMl }
     }
-    startReminders(getConfig)
-    return cancelReminders
+    startReminders(getConfig, { onFire: () => setDue(true) })
+    const iv = setInterval(() => startReminders(getConfig, { onFire: () => setDue(true) }), 60000)
+    return () => {
+      cancelReminders()
+      clearInterval(iv)
+    }
   }, [state])
 
   useEffect(() => {
@@ -105,22 +136,31 @@ export default function App() {
       const goalG = Math.max(1, Math.ceil(goalMl / glass))
       const done = Math.min(goalG, Math.floor(total / glass))
       const mlLeft = Math.max(0, goalMl - total)
+      const pct = Math.min(100, Math.round((total / goalMl) * 100))
+      const completato = total >= goalMl
       const start = new Date(now)
       start.setHours(s.settings.startHour, 0, 0, 0)
       const end = new Date(now)
       end.setHours(s.settings.endHour, 0, 0, 0)
       let time
-      if (now < start) time = `La giornata riparte alle ${s.settings.startHour}:00`
-      else if (now >= end) time = `Giornata chiusa: riparte alle ${s.settings.startHour}:00`
+      if (now < start) time = t('tray.time.starts', { h: s.settings.startHour })
+      else if (now >= end) time = t('tray.time.closed', { h: s.settings.startHour })
       else {
         const h = Math.max(1, Math.round((end - now) / 3600000))
-        time = `Restano ${h}h alla giornata (fino alle ${s.settings.endHour}:00)`
+        time = t('tray.time.left', { h, e: s.settings.endHour })
       }
+      const title = completato
+        ? t('tray.done')
+        : dueRef.current
+          ? `💧 ${pct}%`
+          : `${pct}%`
       const { invoke } = await import('@tauri-apps/api/core')
       await invoke('tray_update', {
-        title: `${done}/${goalG}`,
-        today: `Oggi ${done}/${goalG} bicchieri · mancano ${mlLeft} ml`,
-        time
+        title,
+        today: completato ? t('tray.alldone') : t('tray.today', { p: pct, m: mlLeft }),
+        time,
+        notify: t('tray.notif', { s: notifyStatusText() }),
+        drink: t('tray.drink') + (dueRef.current ? ` — ${t('tray.now')}` : '')
       })
     }
     Promise.resolve()
@@ -137,7 +177,10 @@ export default function App() {
     }
   }, [logGlass, state])
 
-  const logDrink = (ml) => setState((s) => addEntry(s, { ts: Date.now(), ml }))
+  const logDrink = (ml) => {
+    setDue(false)
+    setState((s) => addEntry(s, { ts: Date.now(), ml }))
+  }
   const undoLast = () => setState((s) => removeLastEntryOfDay(s, dayKey(new Date())))
   const update = (patch) => setState((s) => ({ ...s, ...patch }))
   const updateSettings = (patch) =>
@@ -158,6 +201,7 @@ export default function App() {
             goalGlasses={goalGlasses}
             glassesToday={glassesToday}
             streak={streak}
+            due={due}
             onLog={logDrink}
             onUndo={undoLast}
           />

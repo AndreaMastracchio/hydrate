@@ -39,3 +39,17 @@ body {
 .bob {
   animation: bob 3s ease-in-out infinite;
 }
+
+@keyframes pulseSoft {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(251, 191, 36, 0);
+  }
+}
+
+.anim-pulse {
+  animation: pulseSoft 1.8s ease-in-out infinite;
+}

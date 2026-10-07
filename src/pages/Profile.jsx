@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
 import { getPermission, requestPermission, syncPermission } from '../lib/notify.js'
+import { goalBreakdown } from '../lib/hydrate.js'
+import { t, dateLocale, fmtNum } from '../lib/i18n.js'
+
+const hh = (h) => `${String(h).padStart(2, '0')}:00`
+const factor = (f) => f.toLocaleString(dateLocale())
 
 const inputCls =
   'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none transition focus:border-cyan-500'
@@ -48,31 +53,32 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
   }
 
   const permLabel = {
-    granted: 'Notifiche autorizzate',
-    denied: 'Notifiche bloccate dalle impostazioni del browser',
-    default: 'Notifiche non ancora autorizzate',
-    unsupported: 'Questo browser non supporta le notifiche'
+    granted: t('perm.granted'),
+    denied: t('perm.denied'),
+    default: t('perm.default'),
+    unsupported: t('perm.denied')
   }[perm]
 
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <h1 className="text-lg font-semibold text-slate-100">Profilo</h1>
-        <p className="text-xs text-slate-500">Tutto locale: nessun account, nessuna nube</p>
+        <h1 className="text-lg font-semibold text-slate-100">{t('nav.profile')}</h1>
+        <p className="text-xs text-slate-500">{t('profile.footer')}</p>
       </header>
 
-      <Section title="Tu">
+      <Section title={t('profile.you')}>
         <label className="flex flex-col gap-1 text-xs text-slate-400">
-          Nome
+          {t('profile.name')}
           <input
             className={inputCls}
             value={state.name}
-            placeholder="Il tuo nome"
+            placeholder={t('profile.name')}
             onChange={(e) => onUpdate({ name: e.target.value })}
           />
+          <span className="text-slate-600">{t('profile.name.hint')}</span>
         </label>
         <label className="mt-3 flex flex-col gap-1 text-xs text-slate-400">
-          Peso in kg (per stimare quanta acqua serve a te)
+          {t('profile.weight')}
           <input
             className={inputCls}
             type="number"
@@ -84,14 +90,16 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
               onSettings({ weightKg: e.target.value ? Number(e.target.value) : null })
             }
           />
+          <span className="text-slate-600">{t('profile.weight.hint')}</span>
         </label>
         <div className="mt-3 flex flex-col gap-1 text-xs text-slate-400">
-          Quanto ti muovi
+          {t('profile.activity')}
+          <span className="text-slate-600">{t('profile.activity.hint')}</span>
           <div className="flex gap-2">
             {[
-              ['sedentary', 'Sedentario'],
-              ['moderate', 'Moderato'],
-              ['active', 'Sportivo']
+              ['sedentary', t('prof.sedentary')],
+              ['moderate', t('prof.moderate')],
+              ['active', t('prof.active')]
             ].map(([k, l]) => (
               <button
                 key={k}
@@ -109,17 +117,32 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
         </div>
       </Section>
 
-      <Section title="Obiettivo automatico">
+      <Section title={t('profile.ob')}>
         <p className="text-sm text-slate-200">
-          {goal} ml · {goalGlasses} bicchieri
+          {fmtNum(goal)} ml · {goalGlasses} {t('home.glassWord')}
         </p>
-        <p className="mt-2 text-xs text-slate-500">
-          Non te lo chiediamo: lo calcoliamo noi dal tuo peso, dalla tua attività, dalla stagione e
-          dalla media degli ultimi 7 giorni in cui hai bevuto (mai sotto 1.500, mai sopra 4.000 ml).
-        </p>
+        {state.settings.weightKg ? (
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            {(() => {
+              const b = goalBreakdown(state.settings.weightKg, state.settings.activity, new Date())
+              return t('profile.ob.formula', {
+                base: fmtNum(b.base),
+                w: state.settings.weightKg,
+                act: b.activityLabel.toLowerCase(),
+                af: factor(b.activityFactor),
+                sf: factor(b.seasonFactor),
+                round: fmtNum(b.rounded),
+                g: b.glasses
+              })
+            })()}
+          </p>
+        ) : (
+          <p className="mt-2 text-xs text-slate-500">{t('profile.ob.hintWeight')}</p>
+        )}
+        <p className="mt-1 text-xs text-slate-500">{t('profile.ob.balance')}</p>
       </Section>
 
-      <Section title="Il tuo bicchiere">
+      <Section title={t('profile.glass')}>
         <div className="flex gap-2">
           {[200, 250, 330, 500].map((ml) => (
             <button
@@ -135,83 +158,147 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          Quanto ci metti nel tuo bicchiere? È il modo in cui contiamo: «un bicchiere».
-        </p>
+        <p className="mt-2 text-xs text-slate-500">{t('profile.glass.hint')}</p>
       </Section>
 
-      <Section title="Promemoria">
+      <Section title={t('profile.rem')}>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm text-slate-200">Ricordami di bere</p>
+              <p className="text-sm text-slate-200">{t('profile.remind')}</p>
               <p className="text-xs text-slate-500">{permLabel}</p>
             </div>
             <Toggle
-              label="Attiva i promemoria"
+              label={t('profile.enable')}
               on={state.settings.enabled}
-              onChange={(on) => (on && perm !== 'granted' ? enableNotifications() : onSettings({ enabled: on }))}
+              onChange={(on) =>
+                on && perm !== 'granted' ? enableNotifications() : onSettings({ enabled: on })
+              }
             />
           </div>
 
-          <label className="flex flex-col gap-1 text-xs text-slate-400">
-            Ogni {state.settings.intervalMin} minuti
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-slate-200">{t('prof.autoInterval')}</p>
+              <p className="text-xs text-slate-500">{t('prof.autoInterval.hint')}</p>
+            </div>
+            <Toggle
+              label={t('prof.autoInterval.toggle')}
+              on={state.settings.autoInterval}
+              onChange={(on) => onSettings({ autoInterval: on })}
+            />
+          </div>
+
+          <label className={`flex flex-col gap-1 text-xs text-slate-400 ${state.settings.autoInterval ? 'opacity-50' : ''}`}>
+            {state.settings.autoInterval
+              ? t('prof.every.auto', { n: state.settings.intervalMin })
+              : t('prof.every', { n: state.settings.intervalMin })}
             <input
               type="range"
               min="30"
               max="240"
               step="30"
               value={state.settings.intervalMin}
+              disabled={state.settings.autoInterval}
               onChange={(e) => onSettings({ intervalMin: Number(e.target.value) })}
               className="accent-cyan-400"
             />
           </label>
 
-          <div className="flex gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-slate-200">{t('prof.when')}</p>
+              <p className="text-xs text-slate-500">
+                {state.settings.autoWindow
+                  ? t('prof.when.auto.on', {
+                      s: hh(state.settings.startHour),
+                      e: hh(state.settings.endHour)
+                    })
+                  : t('prof.when.manual')}
+              </p>
+            </div>
+            <Toggle
+              label={t('prof.when.toggle')}
+              on={state.settings.autoWindow}
+              onChange={(on) => onSettings({ autoWindow: on })}
+            />
+          </div>
+
+          <div
+            className={`flex gap-3 ${state.settings.autoWindow ? 'pointer-events-none opacity-50' : ''}`}
+          >
             <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
-              Dalle
+              {t('prof.from')}
               <input
                 className={inputCls}
                 type="time"
-                value={`${String(state.settings.startHour).padStart(2, '0')}:00`}
-                onChange={(e) => onSettings({ startHour: Number(e.target.value.split(':')[0]) })}
+                value={hh(state.settings.startHour)}
+                onChange={(e) =>
+                  onSettings({ startHour: Number(e.target.value.split(':')[0]), autoWindow: false })
+                }
               />
             </label>
             <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
-              Alle
+              {t('prof.to')}
               <input
                 className={inputCls}
                 type="time"
-                value={`${String(state.settings.endHour).padStart(2, '0')}:00`}
-                onChange={(e) => onSettings({ endHour: Number(e.target.value.split(':')[0]) })}
+                value={hh(state.settings.endHour)}
+                onChange={(e) =>
+                  onSettings({ endHour: Number(e.target.value.split(':')[0]), autoWindow: false })
+                }
               />
             </label>
           </div>
 
           <ul className="flex flex-col gap-1 text-xs text-slate-500">
-            <li>• Si fermano appena raggiungi il goal.</li>
-            <li>• L’intervallo riparte dall’ultimo sorso, non da orari fissi.</li>
-            <li>• Con suono discreto, mai di notte, mai pubblicità.</li>
-            <li>• Con l’app desktop girano anche con la finestra chiusa: l’app vive nel menu in alto.</li>
-            <li>• La risposta a «bevi» è un tap su «Bevi un bicchiere 💧» nel menu in alto.</li>
+            <li>{t('prof.b.named')}</li>
+            <li>{t('prof.b.stop')}</li>
+            <li>{t('prof.b.sip')}</li>
+            <li>{t('prof.b.sound')}</li>
+            <li>{t('prof.b.desktop')}</li>
+            <li>{t('prof.b.tap')}</li>
           </ul>
         </div>
       </Section>
 
-      <Section title="Dati">
+      <Section title={t('profile.lang')}>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onUpdate({ lang: 'it' })}
+            className={`flex-1 rounded-xl border px-2 py-2 text-sm transition ${
+              state.lang !== 'en'
+                ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                : 'border-slate-700 bg-slate-950 text-slate-300'
+            }`}
+          >
+            Italiano
+          </button>
+          <button
+            onClick={() => onUpdate({ lang: 'en' })}
+            className={`flex-1 rounded-xl border px-2 py-2 text-sm transition ${
+              state.lang === 'en'
+                ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                : 'border-slate-700 bg-slate-950 text-slate-300'
+            }`}
+          >
+            English
+          </button>
+        </div>
+      </Section>
+
+      <Section title={t('profile.data')}>
         <button
           onClick={() => {
-            if (window.confirm('Cancellare tutti i dati? Non si può tornare indietro.')) onReset()
+            if (window.confirm(t('profile.reset.confirm'))) onReset()
           }}
           className="w-full rounded-xl border border-red-900/60 bg-red-950/40 py-2.5 text-sm text-red-300 transition hover:border-red-700"
         >
-          Cancella tutti i dati
+          {t('profile.reset')}
         </button>
       </Section>
 
-      <p className="pb-2 text-center text-xs text-slate-600">
-        Hydrate v0.1.0 — gratis, senza account, senza ads.
-      </p>
+      <p className="pb-2 text-center text-xs text-slate-600">{t('profile.footer')}</p>
     </div>
   )
 }

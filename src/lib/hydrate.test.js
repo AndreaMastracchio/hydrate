@@ -12,7 +12,10 @@ import {
   completionRate,
   weeklyBars,
   nextReminderDelay,
-  computeGoal
+  computeGoal,
+  activeWindow,
+  goalBreakdown,
+  adaptedInterval
 } from './hydrate.js'
 
 const at = (y, m, d, h = 12, min = 0) => new Date(y, m - 1, d, h, min)
@@ -236,5 +239,101 @@ describe('computeGoal individuale (peso, attività, stagione)', () => {
   it('peso estremo resta nei limiti', () => {
     expect(computeGoal([], ESTATE, { weightKg: 130, activity: 'active' })).toBe(4000)
     expect(computeGoal([], T, { weightKg: 35, activity: 'sedentary' })).toBe(1500)
+  })
+})
+
+describe('activeWindow (fascia oraria automatica dalle bevute)', () => {
+  const FALLBACK = { startHour: 9, endHour: 22 }
+  const T = at(2026, 3, 12, 12)
+
+  it('senza bevute usa il fallback', () => {
+    expect(activeWindow([], T, FALLBACK)).toEqual(FALLBACK)
+  })
+
+  it('con bevute 8:00..23:00 estende la fascia', () => {
+    const e = [
+      entry(at(2026, 3, 9, 8), 250),
+      entry(at(2026, 3, 10, 8), 250),
+      entry(at(2026, 3, 10, 17, 30), 250),
+      entry(at(2026, 3, 11, 23), 250),
+      entry(at(2026, 3, 12, 12), 250)
+    ]
+    const w = activeWindow(e, T, FALLBACK)
+    expect(w.startHour).toBeLessThanOrEqual(8)
+    expect(w.endHour).toBeGreaterThanOrEqual(23)
+  })
+
+  it('con poca storia (meno di 4 giorni) NON adatta: resta il fallback', () => {
+    const e = [
+      entry(at(2026, 3, 10, 19, 36), 250),
+      entry(at(2026, 3, 11, 12), 250),
+      entry(at(2026, 3, 12, 15), 250)
+    ]
+    expect(activeWindow(e, T, FALLBACK)).toEqual(FALLBACK)
+  })
+
+  it('ignora bevute più vecchie dei PRIMI 30 giorni', () => {
+    const e = [entry(at(2026, 1, 3, 6), 250), entry(at(2026, 3, 10, 10), 250)]
+    const w = activeWindow(e, T, FALLBACK)
+    expect(w.startHour).not.toBeLessThan(5)
+    expect(w.endHour).toBeGreaterThanOrEqual(10)
+  })
+
+  it('clampa a una finestra sensata (mai di notte piena, minimo 12 ore)', () => {
+    const e = [
+      entry(at(2026, 3, 10, 2), 250),
+      entry(at(2026, 3, 10, 3), 250),
+      entry(at(2026, 3, 10, 23, 30), 250)
+    ]
+    const w = activeWindow(e, T, FALLBACK)
+    expect(w.startHour).toBeGreaterThanOrEqual(5)
+    expect(w.endHour).toBeLessThanOrEqual(23)
+    expect(w.endHour - w.startHour).toBeGreaterThanOrEqual(11)
+  })
+})
+
+describe('goalBreakdown (conto trasparente del goal)', () => {
+  it('scompone la formula individuo in ml', () => {
+    const b = goalBreakdown(72, 'sedentary', at(2026, 3, 10))
+    expect(b.base).toBe(2376)
+    expect(b.activityFactor).toBe(1)
+    expect(b.seasonFactor).toBe(1)
+    expect(b.rounded).toBe(2400)
+    expect(b.glasses).toBe(10)
+    expect(b.activityLabel).toBe('Sedentario')
+  })
+
+  it('estate alza il fattore stagionale', () => {
+    const b = goalBreakdown(72, 'sedentary', at(2026, 7, 10))
+    expect(b.seasonFactor).toBeCloseTo(1.06)
+  })
+})
+
+describe('adaptedInterval (intervallo che si adatta ai risultati)', () => {
+  const T = at(2026, 3, 10, 12)
+  const GOAL = 2000
+  const day = (offset, ml) => entry(at(T.getFullYear(), T.getMonth() + 1, T.getDate() + offset), ml)
+  const pack = (totals) => totals.map((ml, i) => (ml == null ? null : day(i - 7, ml))).filter(Boolean)
+
+  it('7 giorni pieni => allenta di 30, senza superare 240', () => {
+    expect(adaptedInterval(60, pack([2000, 2000, 2000, 2000, 2000, 2000, 2000]), GOAL, T)).toBe(90)
+    expect(adaptedInterval(240, pack([2000, 2000, 2000, 2000, 2000, 2000, 2000]), GOAL, T)).toBe(240)
+  })
+
+  it('giorni sempre sotto => stringe di 30, senza scendere sotto 30', () => {
+    expect(adaptedInterval(60, pack([800, 900, 700, 1000, 800, 600, 900]), GOAL, T)).toBe(30)
+    expect(adaptedInterval(30, pack([800, 900, 700, 1000, 800, 600, 900]), GOAL, T)).toBe(30)
+  })
+
+  it('risultati misti => lascia l’intervallo invariato', () => {
+    expect(adaptedInterval(60, pack([2000, 800, 2000, 1000, 2000, 1500, 2000]), GOAL, T)).toBe(60)
+  })
+
+  it('meno di 3 giorni con dati => non tocca nulla (troppa poca storia)', () => {
+    expect(adaptedInterval(60, pack([2000, 2000, null, null, null, null, null]), GOAL, T)).toBe(60)
+  })
+
+  it('nessuna bevuta negli ultimi 7 giorni => non adatta', () => {
+    expect(adaptedInterval(60, [], GOAL, T)).toBe(60)
   })
 })

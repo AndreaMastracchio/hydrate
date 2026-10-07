@@ -1,12 +1,14 @@
+import { t } from '../lib/i18n.js'
+
 const items = [
   {
     id: 'home',
-    label: 'Oggi',
+    label: () => t('nav.home'),
     icon: <path d="M12 3 C16 8 19 11 19 14 a7 7 0 0 1 -14 0 c0 -3 3 -6 7 -11 z" />
   },
   {
     id: 'stats',
-    label: 'Grafici',
+    label: () => t('nav.stats'),
     icon: (
       <>
         <path d="M5 20V10" />
@@ -17,7 +19,7 @@ const items = [
   },
   {
     id: 'profile',
-    label: 'Profilo',
+    label: () => t('nav.profile'),
     icon: (
       <>
         <circle cx="12" cy="8" r="4" />
@@ -54,7 +56,7 @@ export default function BottomNav({ tab, onChange }) {
               >
                 {item.icon}
               </svg>
-              {item.label}
+              {item.label()}
             </button>
           )
         })}
