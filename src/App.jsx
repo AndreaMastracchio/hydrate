@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadState, saveState, resetState, DEFAULTS } from './lib/storage.js'
 import { addEntry, removeLastEntryOfDay, dayKey, totalForDay, currentStreak, computeGoal, activeWindow, adaptedInterval } from './lib/hydrate.js'
-import { t, setLocale } from './lib/i18n.js'
+import { t, setLocale, fmtCountdown } from './lib/i18n.js'
 import {
   startReminders,
   cancelReminders,
   snoozeReminder,
-  notifyStatusText
+  notifyStatusText,
+  nextReminderIn
 } from './lib/notify.js'
 import BottomNav from './components/BottomNav.jsx'
 import Home from './pages/Home.jsx'
@@ -22,6 +23,7 @@ export default function App() {
   const [tab, setTab] = useState('home')
   const [state, setState] = useState(loadState)
   const [due, setDue] = useState(false)
+  const [clock, setClock] = useState(() => Date.now())
   const stateRef = useRef(state)
   const dueRef = useRef(due)
   stateRef.current = state
@@ -30,6 +32,11 @@ export default function App() {
   setLocale(state.lang)
 
   useEffect(() => saveState(state), [state])
+
+  useEffect(() => {
+    const iv = setInterval(() => setClock(Date.now()), 30000)
+    return () => clearInterval(iv)
+  }, [])
 
   useEffect(() => {
     if (!state.settings.autoWindow) return undefined
@@ -58,6 +65,10 @@ export default function App() {
   const streak = currentStreak(state.entries, goal)
   const goalGlasses = Math.max(1, Math.ceil(goal / glass))
   const glassesToday = Math.floor(totalToday / glass)
+  const nextLabel = useMemo(() => {
+    const ms = nextReminderIn()
+    return ms == null ? null : fmtCountdown(ms)
+  }, [clock, due, state])
 
   useEffect(() => {
     if (!state.settings.autoInterval) return undefined
@@ -202,6 +213,7 @@ export default function App() {
             glassesToday={glassesToday}
             streak={streak}
             due={due}
+            nextLabel={nextLabel}
             onLog={logDrink}
             onUndo={undoLast}
           />

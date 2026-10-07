@@ -13,6 +13,7 @@ export default function Home({
   glassesToday,
   streak,
   due,
+  nextLabel,
   onLog,
   onUndo
 }) {
@@ -20,6 +21,7 @@ export default function Home({
   const bars = useMemo(() => weeklyBars(state.entries, goal, 7), [state.entries, goal])
   const canUndo = totalToday > 0
   const today = new Date()
+  const showNext = nextLabel != null && !due
 
   return (
     <div className="flex flex-col gap-6">
@@ -53,6 +55,14 @@ export default function Home({
           {t('home.mlOf', { total: fmtNum(totalToday), goal: fmtNum(goal) })} ·{' '}
           {glassesToday}/{goalGlasses} {t('home.glassWord')}
         </p>
+        {showNext && (
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-sky-400" fill="currentColor" aria-hidden="true">
+              <path d="M12 2c1 4-2 5-2 8a4 4 0 0 0 8 0c0-1-.5-2-1-3 3 2 5 5 5 8a9 9 0 0 1-18 0c0-5 5-8 8-13z" />
+            </svg>
+            {t('home.next', { when: nextLabel })}
+          </p>
+        )}
       </section>
 
       {due && (
