@@ -21,7 +21,7 @@ const dict = {
   'home.pill.sip': { it: 'Bevi ora un bicchiere', en: 'Drink a glass now' },
   'home.week': { it: 'Ultimi 7 giorni', en: 'Last 7 days' },
   'home.week.goal': { it: 'obiettivo {n} bicchieri', en: 'goal {n} glasses' },
-  'home.next': { it: 'prossimo bicchiere tra {when}', en: 'next glass in {when}' },
+  'home.next': { it: 'prossimo bicchiere {when}', en: 'next glass {when}' },
 
   'stats.title': { it: 'Statistiche', en: 'Statistics' },
   'stats.sub': { it: 'I tuoi numeri, senza fronzoli', en: 'Your numbers, no fluff' },
