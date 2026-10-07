@@ -69,3 +69,4 @@ poi `npx tauri icon <png>` rigenera tutti i set in `src-tauri/icons/`.
 
 - Tag su `main`, numerato dall'ultima cifra: `v0.1.0 → v0.1.1 → … → v0.1.100`, poi `v0.2.0`.
 - Le release GitHub caricano il DMG generato da `npx tauri build`.
+- `main` è protetto da un **ruleset** (CI `test` verde + strict, niente force-push, niente cancellazioni).
