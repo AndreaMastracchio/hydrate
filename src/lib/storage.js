@@ -18,11 +18,14 @@ export const DEFAULTS = {
   }
 }
 
+export function freshState() {
+  return { ...DEFAULTS, entries: [], settings: { ...DEFAULTS.settings } }
+}
+
 export function loadState() {
-  const fresh = () => ({ ...DEFAULTS, entries: [], settings: { ...DEFAULTS.settings } })
   try {
     const raw = localStorage.getItem(KEY)
-    if (!raw) return fresh()
+    if (!raw) return freshState()
     const parsed = JSON.parse(raw)
     return {
       ...DEFAULTS,
@@ -31,22 +34,18 @@ export function loadState() {
       settings: { ...DEFAULTS.settings, ...(parsed.settings || {}) }
     }
   } catch {
-    return fresh()
+    return freshState()
   }
 }
 
 export function saveState(state) {
   try {
     localStorage.setItem(KEY, JSON.stringify(state))
-  } catch {
-    // storage pieno o indisponibile: l'app resta usabile in sessione
-  }
+  } catch {}
 }
 
 export function resetState() {
   try {
     localStorage.removeItem(KEY)
-  } catch {
-    // niente da fare
-  }
+  } catch {}
 }

@@ -89,13 +89,19 @@ function permissionGranted() {
   return typeof Notification !== 'undefined' && Notification.permission === 'granted'
 }
 
+function reminderTexts() {
+  const name = currentGetConfig?.().name?.trim() || ''
+  return {
+    title: name ? t('notify.title.named', { name }) : t('notify.title.default'),
+    body: name ? t('notify.body.named') : t('notify.body.plain')
+  }
+}
+
 function fire() {
   currentOnFire?.()
   if (isTauri()) {
     notifyState = 'sending'
-    const name = currentGetConfig?.().name?.trim() || ''
-    const title = name ? t('notify.title.named', { name }) : t('notify.title.default')
-    const body = name ? t('notify.body.named') : t('notify.body.plain')
+    const { title, body } = reminderTexts()
     import('@tauri-apps/api/core')
       .then(({ invoke }) => invoke('native_notify', { title, body }))
       .then(() => {
@@ -108,8 +114,8 @@ function fire() {
       })
     return
   }
-  const name = currentGetConfig?.().name?.trim() || ''
-  const n = new Notification(name ? t('notify.title.named', { name }) : t('notify.title.default'), reminderOptions())
+  const { title } = reminderTexts()
+  const n = new Notification(title, reminderOptions())
   n.onclick = () => {
     window.focus()
     n.close()
@@ -141,8 +147,8 @@ function scheduleTick(getConfig) {
   }, delay)
 }
 
-export function nextReminderIn() {
-  return nextReminderAt == null ? null : Math.max(0, nextReminderAt - Date.now())
+export function nextReminderIn(now = Date.now()) {
+  return nextReminderAt == null ? null : Math.max(0, nextReminderAt - now)
 }
 
 export function notifyStatusText() {

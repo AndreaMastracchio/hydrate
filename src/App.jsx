@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { loadState, saveState, resetState, DEFAULTS } from './lib/storage.js'
+import { loadState, saveState, freshState, resetState } from './lib/storage.js'
 import { addEntry, removeLastEntryOfDay, dayKey, totalForDay, currentStreak, computeGoal, activeWindow, adaptedInterval } from './lib/hydrate.js'
 import { t, setLocale, fmtCountdown } from './lib/i18n.js'
 import {
@@ -14,10 +14,16 @@ import Home from './pages/Home.jsx'
 import Stats from './pages/Stats.jsx'
 import Profile from './pages/Profile.jsx'
 
-const freshState = () => ({ ...DEFAULTS, entries: [], settings: { ...DEFAULTS.settings } })
-
 const glassOf = (s) => (s.glassMl > 0 ? s.glassMl : 250)
 const snapToGlass = (ml, glass) => Math.ceil(ml / glass) * glass
+const goalMlFor = (s, now = new Date()) =>
+  snapToGlass(
+    computeGoal(s.entries, now, {
+      weightKg: s.settings.weightKg,
+      activity: s.settings.activity
+    }),
+    glassOf(s)
+  )
 const showMiniWindow = async () => {
   if (!window.__TAURI_INTERNALS__) return
   try {
@@ -58,24 +64,15 @@ export default function App() {
   const todayKey = dayKey(new Date())
   const totalToday = totalForDay(state.entries, todayKey)
   const glass = glassOf(state)
-  const goal = useMemo(
-    () =>
-      snapToGlass(
-        computeGoal(state.entries, new Date(), {
-          weightKg: state.settings.weightKg,
-          activity: state.settings.activity
-        }),
-        glass
-      ),
-    [state.entries, glass, state.settings.weightKg, state.settings.activity]
-  )
+  const goal = useMemo(() => goalMlFor(state), [state])
   const streak = currentStreak(state.entries, goal)
   const goalGlasses = Math.max(1, Math.ceil(goal / glass))
   const glassesToday = Math.floor(totalToday / glass)
+  const nowMs = clock
   const nextLabel = useMemo(() => {
-    const ms = nextReminderIn()
+    const ms = nextReminderIn(nowMs)
     return ms == null ? null : fmtCountdown(ms)
-  }, [clock, due, state])
+  }, [nowMs])
 
   useEffect(() => {
     if (!state.settings.autoInterval) return undefined
@@ -100,13 +97,7 @@ export default function App() {
       let lastLogTs = 0
       for (const e of s.entries) if (e.ts > lastLogTs) lastLogTs = e.ts
       const todayTotal = totalForDay(s.entries, dayKey(new Date()))
-      const goalMl = snapToGlass(
-        computeGoal(s.entries, new Date(), {
-          weightKg: s.settings.weightKg,
-          activity: s.settings.activity
-        }),
-        glassOf(s)
-      )
+      const goalMl = goalMlFor(s)
       return { ...s.settings, lastLogTs, goalMet: todayTotal >= goalMl }
     }
     const onFire = () => {
@@ -146,21 +137,12 @@ export default function App() {
     let unlisten = () => {}
     const pushTray = async (s) => {
       const now = new Date()
-      const glass = glassOf(s)
-      const goalMl = snapToGlass(
-        computeGoal(s.entries, now, {
-          weightKg: s.settings.weightKg,
-          activity: s.settings.activity
-        }),
-        glass
-      )
+      const goalMl = goalMlFor(s, now)
       const total = totalForDay(s.entries, dayKey(now))
-      const goalG = Math.max(1, Math.ceil(goalMl / glass))
-      const done = Math.min(goalG, Math.floor(total / glass))
       const mlLeft = Math.max(0, goalMl - total)
       const pct = Math.min(100, Math.round((total / goalMl) * 100))
       const completato = total >= goalMl
-      const nextIn = nextReminderIn()
+      const nextIn = nextReminderIn(now.getTime())
       const later = completato
         ? ''
         : dueRef.current
