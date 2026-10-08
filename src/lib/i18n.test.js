@@ -40,3 +40,12 @@ describe('chorus home.next senza doppio "tra"', () => {
     expect(out).toBe('next glass in 25 min')
   })
 })
+
+describe('profile.footer senza versione hardcoded', () => {
+  it('prende la versione da {v}, non la incolla nel testo', () => {
+    setLocale('it')
+    const out = t('profile.footer', { v: '9.9.9' })
+    expect(out).toContain('Hydrate 9.9.9')
+    expect(out).not.toMatch(/v0\./)
+  })
+})
