@@ -63,7 +63,6 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
     <div className="flex flex-col gap-5">
       <header>
         <h1 className="text-lg font-semibold text-slate-100">{t('nav.profile')}</h1>
-        <p className="text-xs text-slate-500">{t('profile.footer')}</p>
       </header>
 
       <Section title={t('profile.you')}>
@@ -298,7 +297,7 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
         </button>
       </Section>
 
-      <p className="pb-2 text-center text-xs text-slate-600">{t('profile.footer')}</p>
+      <p className="pb-2 text-center text-xs text-slate-600">{t('profile.footer', { v: __APP_VERSION__ })}</p>
     </div>
   )
 }

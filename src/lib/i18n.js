@@ -117,8 +117,8 @@ const dict = {
     en: 'Delete all your data? This cannot be undone.'
   },
   'profile.footer': {
-    it: 'Hydrate v0.1.0 — gratis, senza account, senza ads.',
-    en: 'Hydrate v0.1.0 — free, no account, no ads.'
+    it: 'Hydrate {v} — gratis, senza account, senza ads.',
+    en: 'Hydrate {v} — free, no account, no ads.'
   },
 
   'notify.title.default': { it: 'Hydrate', en: 'Hydrate' },
