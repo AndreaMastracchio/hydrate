@@ -24,6 +24,14 @@ const goalMlFor = (s, now = new Date()) =>
     }),
     glassOf(s)
   )
+const showMiniWindow = async () => {
+  if (!window.__TAURI_INTERNALS__) return
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('mini_show')
+  } catch {}
+}
+
 export default function App() {
   const [tab, setTab] = useState('home')
   const [state, setState] = useState(loadState)
@@ -94,6 +102,7 @@ export default function App() {
     }
     const onFire = () => {
       setDue(true)
+      showMiniWindow()
     }
     startReminders(getConfig, { onFire })
     const iv = setInterval(() => startReminders(getConfig, { onFire }), 60000)
@@ -171,7 +180,9 @@ export default function App() {
     import('@tauri-apps/api/event')
       .then(async ({ listen }) => {
         const off = await Promise.all([
-          listen('tray:drink', () => logGlass())
+          listen('tray:drink', () => logGlass()),
+          listen('mini:drink', () => logGlass()),
+          listen('mini:later', () => snoozeReminder())
         ])
         if (dead) off.forEach((fn) => fn())
         else unlisten = () => off.forEach((fn) => fn())

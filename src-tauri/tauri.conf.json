@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Hydrate",
         "width": 430,
         "height": 850,
@@ -19,6 +20,21 @@
         "minHeight": 600,
         "resizable": true,
         "fullscreen": false
+      },
+      {
+        "label": "mini",
+        "title": "Hydrate",
+        "url": "index.html#mini",
+        "width": 320,
+        "height": 200,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": true,
+        "focus": false
       }
     ],
     "security": {

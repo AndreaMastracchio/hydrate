@@ -56,11 +56,36 @@ fn native_notify(
   }
 }
 
+#[tauri::command]
+fn mini_show(app: tauri::AppHandle) -> Result<(), String> {
+  if let Some(window) = app.get_webview_window("mini") {
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
+  }
+  Ok(())
+}
+
+#[tauri::command]
+fn mini_action(app: tauri::AppHandle, action: String) -> Result<(), String> {
+  if let Some(window) = app.get_webview_window("mini") {
+    let _ = window.hide();
+  }
+  let event = match action.as_str() {
+    "drink" => Some("mini:drink"),
+    "later" => Some("mini:later"),
+    _ => None,
+  };
+  if let Some(event) = event {
+    app.emit(event, ()).map_err(|e| e.to_string())?;
+  }
+  Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_notification::init())
-    .invoke_handler(tauri::generate_handler![tray_update, native_notify])
+    .invoke_handler(tauri::generate_handler![tray_update, native_notify, mini_show, mini_action])
     .setup(|app| {
       app.handle()
         .set_activation_policy(tauri::ActivationPolicy::Accessory)?;
