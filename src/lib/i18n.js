@@ -121,15 +121,17 @@ const dict = {
     en: 'Hydrate v0.1.0 — free, no account, no ads.'
   },
 
+  'mini.close': { it: 'Chiudi', en: 'Close' },
+
   'notify.title.default': { it: 'Hydrate', en: 'Hydrate' },
   'notify.title.named': { it: '{name}, bevi 💧', en: '{name}, drink up 💧' },
   'notify.body.named': {
-    it: 'È l’ora di un bicchiere. Tocca «Bevi un bicchiere 💧» nel menu in alto.',
-    en: 'Time for a glass. Tap «Drink a glass 💧» in the menubar.'
+    it: 'È l’ora di un bicchiere. Confermalo nella finestrella appena apparsa.',
+    en: 'Time for a glass. Confirm it in the little window.'
   },
   'notify.body.plain': {
-    it: 'È l’ora di un bicchiere 💧 Tocca «Bevi un bicchiere» nel menu in alto.',
-    en: 'Time for a glass 💧 Tap «Drink a glass» in the menubar.'
+    it: 'È l’ora di un bicchiere 💧 Confermalo nella finestrella appena apparsa.',
+    en: 'Time for a glass 💧 Confirm it in the little window.'
   },
   'notify.browser.body': {
     it: 'È l’ora di un bicchiere 💧 Tocca «Ho bevuto» quando lo hai bevuto.',

@@ -18,6 +18,13 @@ const freshState = () => ({ ...DEFAULTS, entries: [], settings: { ...DEFAULTS.se
 
 const glassOf = (s) => (s.glassMl > 0 ? s.glassMl : 250)
 const snapToGlass = (ml, glass) => Math.ceil(ml / glass) * glass
+const showMiniWindow = async () => {
+  if (!window.__TAURI_INTERNALS__) return
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('mini_show')
+  } catch {}
+}
 
 export default function App() {
   const [tab, setTab] = useState('home')
@@ -102,8 +109,12 @@ export default function App() {
       )
       return { ...s.settings, lastLogTs, goalMet: todayTotal >= goalMl }
     }
-    startReminders(getConfig, { onFire: () => setDue(true) })
-    const iv = setInterval(() => startReminders(getConfig, { onFire: () => setDue(true) }), 60000)
+    const onFire = () => {
+      setDue(true)
+      showMiniWindow()
+    }
+    startReminders(getConfig, { onFire })
+    const iv = setInterval(() => startReminders(getConfig, { onFire }), 60000)
     return () => {
       cancelReminders()
       clearInterval(iv)
@@ -185,8 +196,16 @@ export default function App() {
       .catch(() => {})
     const iv = setInterval(() => pushTray(stateRef.current).catch(() => {}), 60000)
     import('@tauri-apps/api/event')
-      .then(({ listen }) => listen('tray:drink', () => logGlass()))
-      .then((fn) => (dead ? fn() : (unlisten = fn)))
+      .then(async ({ listen }) => {
+        const off = await Promise.all([
+          listen('tray:drink', () => logGlass()),
+          listen('mini:drink', () => logGlass()),
+          listen('mini:later', () => snoozeReminder())
+        ])
+        if (dead) off.forEach((fn) => fn())
+        else unlisten = () => off.forEach((fn) => fn())
+      })
+      .catch(() => {})
     return () => {
       dead = true
       unlisten()

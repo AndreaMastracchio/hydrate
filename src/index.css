@@ -53,3 +53,73 @@ body {
 .anim-pulse {
   animation: pulseSoft 1.8s ease-in-out infinite;
 }
+
+:root.mini,
+:root.mini body {
+  background: transparent;
+}
+
+.mini-root {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+
+.mini-card {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid #1e293b;
+  background: linear-gradient(180deg, #0f172a, #070b14);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mini-title {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.mini-drink {
+  border-radius: 12px;
+  background: linear-gradient(180deg, #67e8f9, #0ea5e9);
+  color: #020617;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 11px 0;
+  transition: transform 100ms ease;
+}
+
+.mini-drink:active {
+  transform: scale(0.97);
+}
+
+.mini-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mini-btn {
+  flex: 1;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #cbd5e1;
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+.mini-icon {
+  width: 40px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #94a3b8;
+  font-size: 13px;
+}
