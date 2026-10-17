@@ -40,6 +40,7 @@ const goalMlFor = (s, now = new Date()) =>
 export default function App() {
   const [tab, setTab] = useState('home')
   const [state, setState] = useState(loadState)
+  const [loaded, setLoaded] = useState(false)
   const [due, setDue] = useState(false)
   const [clock, setClock] = useState(() => Date.now())
   const [nextAt, setNextAt] = useState(null)
@@ -55,16 +56,22 @@ export default function App() {
   useEffect(() => {
     let dead = false
     loadStateAsync().then((s) => {
-      if (!dead) setState(s)
+      if (!dead) {
+        setState(s)
+        setLoaded(true)
+      }
     })
     return () => {
       dead = true
     }
   }, [])
 
+  // Si salva solo DOPO che lo stato vero (Rust) è stato caricato: altrimenti il
+  // mirror locale, ancora stantio, sovrascriverebbe lo store all'avvio.
   useEffect(() => {
+    if (!loaded) return
     saveStateAsync(state)
-  }, [state])
+  }, [state, loaded])
 
   useEffect(() => {
     const iv = setInterval(() => setClock(Date.now()), 30000)
@@ -194,7 +201,7 @@ export default function App() {
           }),
           listen('tray:drink', refresh),
           listen('mini:drink', refresh),
-          listen('mini:later', refresh)
+          listen('tray:later', refresh)
         ])
       )
     listenAll()

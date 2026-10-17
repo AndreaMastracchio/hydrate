@@ -99,20 +99,12 @@ pub fn tray_notif(status: &str, en: bool) -> String {
   )
 }
 
-pub fn notify_texts(name: &str, en: bool) -> (String, String) {
-  let named = !name.trim().is_empty();
-  let title = match (named, en) {
-    (true, false) => fmt("{name}, bevi 💧", &[("name", name.to_string())]),
-    (true, true) => fmt("{name}, drink up 💧", &[("name", name.to_string())]),
-    (false, _) => "Hydrate".to_string(),
-  };
-  let body = match (named, en) {
-    (true, false) => "È l’ora di un bicchiere. Confermalo nella finestrella appena apparsa.".to_string(),
-    (true, true) => "Time for a glass. Confirm it in the little window.".to_string(),
-    (false, false) => "È l’ora di un bicchiere 💧 Confermalo nella finestrella appena apparsa.".to_string(),
-    (false, true) => "Time for a glass 💧 Confirm it in the little window.".to_string(),
-  };
-  (title, body)
+pub fn tray_snooze(en: bool) -> &'static str {
+  if en {
+    "Snooze 15 min"
+  } else {
+    "Rimanda 15 min"
+  }
 }
 
 #[cfg(test)]
@@ -127,15 +119,5 @@ mod tests {
     assert_eq!(tray_drink(false, false), "Bevi un bicchiere 💧");
     assert_eq!(tray_drink(false, true), "Bevi un bicchiere 💧 — ora!");
     assert_eq!(tray_drink(true, true), "Drink a glass 💧 — now!");
-  }
-
-  #[test]
-  fn notify_named_and_plain() {
-    let (t, b) = notify_texts("Andrea", false);
-    assert_eq!(t, "Andrea, bevi 💧");
-    assert!(b.contains("finestrella"));
-    let (t2, b2) = notify_texts("  ", true);
-    assert_eq!(t2, "Hydrate");
-    assert!(b2.contains("glass"));
   }
 }

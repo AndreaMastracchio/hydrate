@@ -87,17 +87,14 @@ function permissionGranted() {
   return typeof Notification !== 'undefined' && Notification.permission === 'granted'
 }
 
-function reminderTexts() {
+function reminderTitle() {
   const name = currentGetConfig?.().name?.trim() || ''
-  return {
-    title: name ? t('notify.title.named', { name }) : t('notify.title.default'),
-    body: name ? t('notify.body.named') : t('notify.body.plain')
-  }
+  return name ? t('notify.title.named', { name }) : t('notify.title.default')
 }
 
 function fire() {
   currentOnFire?.()
-  const { title } = reminderTexts()
+  const title = reminderTitle()
   const n = new Notification(title, reminderOptions())
   n.onclick = () => {
     window.focus()

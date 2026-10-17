@@ -13,7 +13,7 @@ mod strings;
 
 use schedule::{compose_title, next_delay, ScheduleCfg};
 use store::{state_path, AppState, SharedStore, Store};
-use strings::{is_en, notify_texts, tray_alldone, tray_drink, tray_notif, tray_time, tray_today};
+use strings::{is_en, tray_alldone, tray_drink, tray_notif, tray_snooze, tray_time, tray_today};
 
 const TICK_SECS: u64 = 20;
 const SNOOZE_MIN: u32 = 15;
@@ -35,6 +35,7 @@ pub struct TrayState {
   time_item: MenuItem<tauri::Wry>,
   notify_item: MenuItem<tauri::Wry>,
   drink_item: MenuItem<tauri::Wry>,
+  snooze_item: MenuItem<tauri::Wry>,
   meta: Mutex<TrayMeta>,
 }
 
@@ -57,11 +58,48 @@ fn send_notification(app: &AppHandle, title: &str, body: &str) -> Result<(), Str
   }
 }
 
-fn show_mini(app: &AppHandle) -> Result<(), String> {
-  if let Some(window) = app.get_webview_window("mini") {
-    window.show().map_err(|e| e.to_string())?;
-    window.set_focus().map_err(|e| e.to_string())?;
+/// Il display col menu bar è quello con origine (0,0): `primary_monitor()` su
+/// macOS può restituirne un altro, e il popup finirebbe sullo schermo sbagliato.
+fn main_monitor(app: &AppHandle) -> Option<tauri::Monitor> {
+  if let Ok(mons) = app.available_monitors() {
+    if let Some(m) = mons
+      .into_iter()
+      .find(|m| m.position().x == 0 && m.position().y == 0)
+    {
+      return Some(m);
+    }
   }
+  app.primary_monitor().ok().flatten()
+}
+
+fn show_mini(app: &AppHandle) {
+  let Some(w) = app.get_webview_window("mini") else {
+    return;
+  };
+  let _ = w.set_visible_on_all_workspaces(true);
+  if let Some(mon) = main_monitor(app) {
+    let ms = mon.size();
+    let mp = mon.position();
+    if let Ok(ws) = w.outer_size() {
+      let x = mp.x + ((ms.width as i32 - ws.width as i32) / 2).max(0);
+      let y = mp.y + ((ms.height as i32 - ws.height as i32) / 2).max(0);
+      let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+  }
+  let _ = w.show();
+  let _ = w.set_focus();
+}
+
+fn snooze_now(app: &AppHandle) -> Result<(), String> {
+  {
+    let store = app.state::<SharedStore>();
+    let mut s = store.0.lock().map_err(|e| e.to_string())?;
+    let interval = s.state.settings.interval_min;
+    s.last_reminder_ts = now_ms() - (interval.saturating_sub(SNOOZE_MIN) as i64) * 60_000;
+    s.fired_unconfirmed = false;
+  }
+  app.emit("tray:later", ()).map_err(|e| e.to_string())?;
+  refresh_tray(app);
   Ok(())
 }
 
@@ -83,7 +121,7 @@ fn refresh_tray(app: &AppHandle) {
     return;
   };
   let now = now_ms();
-  let (title, today, time, notify, drink);
+  let (title, today, time, notify, drink, snooze);
   {
     let store = app.state::<SharedStore>();
     let Ok(s) = store.0.lock() else {
@@ -109,6 +147,7 @@ fn refresh_tray(app: &AppHandle) {
     time = tray_time(now, s.state.settings.start_hour, s.state.settings.end_hour, en);
     notify = tray_notif(&notify_status, en);
     drink = tray_drink(en, s.fired_unconfirmed);
+    snooze = tray_snooze(en).to_string();
   }
   let _ = tray
     .tray
@@ -117,11 +156,12 @@ fn refresh_tray(app: &AppHandle) {
   let _ = tray.time_item.set_text(time);
   let _ = tray.notify_item.set_text(notify);
   let _ = tray.drink_item.set_text(drink);
+  let _ = tray.snooze_item.set_text(snooze);
 }
 
 fn scheduler_tick(app: &AppHandle) {
   let now = now_ms();
-  let mut fire: Option<(String, String)> = None;
+  let mut fire = false;
   {
     let store = app.state::<SharedStore>();
     let Ok(mut s) = store.0.lock() else {
@@ -146,16 +186,27 @@ fn scheduler_tick(app: &AppHandle) {
         ..cfg
       };
       s.next_fire_at = next_delay(&after, now).map(|d| now + d);
-      let en = is_en(&s.state.lang);
-      fire = Some(notify_texts(&s.state.name, en));
+      fire = true;
     }
   }
-  if let Some((title, body)) = fire {
-    let _ = send_notification(app, &title, &body);
-    let _ = show_mini(app);
+  if fire {
+    show_mini(app);
     let _ = app.emit("reminder:due", ());
   }
   refresh_tray(app);
+}
+
+#[tauri::command]
+fn mini_action(app: AppHandle, action: String) -> Result<(), String> {
+  match action.as_str() {
+    "drink" => drink_now(&app, "mini:drink")?,
+    "later" => snooze_now(&app)?,
+    _ => {}
+  }
+  if let Some(w) = app.get_webview_window("mini") {
+    let _ = w.hide();
+  }
+  Ok(())
 }
 
 #[tauri::command]
@@ -167,31 +218,6 @@ fn tray_update(state: State<'_, TrayState>, notify: String) -> Result<(), String
   let app = state.tray.app_handle();
   refresh_tray(app);
   Ok(())
-}
-
-#[tauri::command]
-fn mini_action(app: AppHandle, action: String) -> Result<(), String> {
-  if let Some(window) = app.get_webview_window("mini") {
-    let _ = window.hide();
-  }
-  match action.as_str() {
-    "drink" => drink_now(&app, "mini:drink"),
-    "later" => {
-      {
-        let store = app.state::<SharedStore>();
-        let Ok(mut s) = store.0.lock() else {
-          return Ok(());
-        };
-        let interval = s.state.settings.interval_min;
-        s.last_reminder_ts = now_ms() - (interval.saturating_sub(SNOOZE_MIN) as i64) * 60_000;
-        s.fired_unconfirmed = false;
-      }
-      app.emit("mini:later", ()).map_err(|e| e.to_string())?;
-      refresh_tray(&app);
-      Ok(())
-    }
-    _ => Ok(()),
-  }
 }
 
 #[tauri::command]
@@ -258,8 +284,8 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_notification::init())
     .invoke_handler(tauri::generate_handler![
-      tray_update,
       mini_action,
+      tray_update,
       state_load,
       state_save,
       state_reset,
@@ -289,6 +315,7 @@ pub fn run() {
       let notify_item = MenuItem::with_id(app, "status-notify", "Notifiche: —", false, None::<&str>)?;
       let separator = PredefinedMenuItem::separator(app)?;
       let drink_i = MenuItem::with_id(app, "drink", "Bevi un bicchiere 💧", true, None::<&str>)?;
+      let snooze_i = MenuItem::with_id(app, "snooze", "Rimanda 15 min", true, None::<&str>)?;
       let test_i = MenuItem::with_id(app, "test-notif", "Prova notifica", true, None::<&str>)?;
       let open_i = MenuItem::with_id(app, "open", "Apri Hydrate", true, None::<&str>)?;
       let quit_i = MenuItem::with_id(app, "quit", "Esci", true, None::<&str>)?;
@@ -300,6 +327,7 @@ pub fn run() {
           &notify_item,
           &separator,
           &drink_i,
+          &snooze_i,
           &test_i,
           &open_i,
           &quit_i,
@@ -313,6 +341,9 @@ pub fn run() {
         .on_menu_event(|app, event| match event.id.as_ref() {
           "drink" => {
             let _ = drink_now(app, "tray:drink");
+          }
+          "snooze" => {
+            let _ = snooze_now(app);
           }
           "test-notif" => {
             let _ = send_notification(
@@ -339,6 +370,7 @@ pub fn run() {
         time_item: time_item.clone(),
         notify_item: notify_item.clone(),
         drink_item: drink_i.clone(),
+        snooze_item: snooze_i.clone(),
         meta: Mutex::new(TrayMeta {
           notify_text: "—".into(),
         }),
