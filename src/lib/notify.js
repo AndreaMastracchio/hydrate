@@ -9,8 +9,6 @@ let lastReminderTs = 0
 let currentGetConfig = null
 let currentOnFire = null
 let tauriGranted = false
-let notifyState = 'off'
-let lastError = ''
 let nextReminderAt = null
 
 const isTauri = () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
@@ -89,32 +87,14 @@ function permissionGranted() {
   return typeof Notification !== 'undefined' && Notification.permission === 'granted'
 }
 
-function reminderTexts() {
+function reminderTitle() {
   const name = currentGetConfig?.().name?.trim() || ''
-  return {
-    title: name ? t('notify.title.named', { name }) : t('notify.title.default'),
-    body: name ? t('notify.body.named') : t('notify.body.plain')
-  }
+  return name ? t('notify.title.named', { name }) : t('notify.title.default')
 }
 
 function fire() {
   currentOnFire?.()
-  if (isTauri()) {
-    notifyState = 'sending'
-    const { title, body } = reminderTexts()
-    import('@tauri-apps/api/core')
-      .then(({ invoke }) => invoke('native_notify', { title, body }))
-      .then(() => {
-        notifyState = 'ok'
-      })
-      .catch((e) => {
-        notifyState = 'error'
-        lastError = String(e)
-        console.error('Hydrate: notifica non riuscita', e)
-      })
-    return
-  }
-  const { title } = reminderTexts()
+  const title = reminderTitle()
   const n = new Notification(title, reminderOptions())
   n.onclick = () => {
     window.focus()
@@ -152,9 +132,9 @@ export function nextReminderIn(now = Date.now()) {
 }
 
 export function notifyStatusText() {
-  if (notifyState === 'ok') return t('notify.ok')
-  if (notifyState === 'sending') return '…'
-  if (notifyState === 'error') return `✗ ${lastError}`
+  // Su desktop il promemoria lo manda Rust: qui riportiamo solo se le
+  // notifiche sono permesse (il webview può essere sospeso, issue #16).
+  if (isTauri()) return tauriGranted ? t('notify.ok') : t('notify.off')
   return t('notify.off')
 }
 
@@ -162,10 +142,9 @@ export function startReminders(getConfig, options = {}) {
   cancelReminders()
   currentOnFire = options.onFire || null
   if (isTauri()) {
-    syncPermission().then((p) => {
-      if (p === 'granted') scheduleTick(getConfig)
-      else console.warn('Hydrate: notifiche bloccate', p)
-    })
+    // Lo scheduler vive in Rust (issue #16): qui sincronizziamo solo il
+    // permesso, che serve al testo «Notifiche: …» nel menu.
+    syncPermission()
     return
   }
   scheduleTick(getConfig)

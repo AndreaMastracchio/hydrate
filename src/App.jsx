@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { loadState, saveState, freshState, resetState } from './lib/storage.js'
+import {
+  loadState,
+  loadStateAsync,
+  reloadStateAsync,
+  saveStateAsync,
+  resetStateAsync,
+  freshState
+} from './lib/storage.js'
 import { addEntry, removeLastEntryOfDay, dayKey, totalForDay, currentStreak, computeGoal, activeWindow, adaptedInterval } from './lib/hydrate.js'
 import { t, setLocale, fmtCountdown } from './lib/i18n.js'
 import {
   startReminders,
   cancelReminders,
   snoozeReminder,
+  syncPermission,
   notifyStatusText,
   nextReminderIn
 } from './lib/notify.js'
@@ -13,6 +21,10 @@ import BottomNav from './components/BottomNav.jsx'
 import Home from './pages/Home.jsx'
 import Stats from './pages/Stats.jsx'
 import Profile from './pages/Profile.jsx'
+
+const isTauri = () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__
+const invoke = (cmd, args) =>
+  import('@tauri-apps/api/core').then(({ invoke }) => invoke(cmd, args))
 
 const glassOf = (s) => (s.glassMl > 0 ? s.glassMl : 250)
 const snapToGlass = (ml, glass) => Math.ceil(ml / glass) * glass
@@ -24,19 +36,14 @@ const goalMlFor = (s, now = new Date()) =>
     }),
     glassOf(s)
   )
-const showMiniWindow = async () => {
-  if (!window.__TAURI_INTERNALS__) return
-  try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('mini_show')
-  } catch {}
-}
 
 export default function App() {
   const [tab, setTab] = useState('home')
   const [state, setState] = useState(loadState)
+  const [loaded, setLoaded] = useState(false)
   const [due, setDue] = useState(false)
   const [clock, setClock] = useState(() => Date.now())
+  const [nextAt, setNextAt] = useState(null)
   const stateRef = useRef(state)
   const dueRef = useRef(due)
   stateRef.current = state
@@ -44,7 +51,27 @@ export default function App() {
 
   setLocale(state.lang)
 
-  useEffect(() => saveState(state), [state])
+  // Su desktop lo stato vero è in Rust: lo carichiamo subito sopra il mirror
+  // di localStorage (migrazione una-tantum inclusa, storage.js).
+  useEffect(() => {
+    let dead = false
+    loadStateAsync().then((s) => {
+      if (!dead) {
+        setState(s)
+        setLoaded(true)
+      }
+    })
+    return () => {
+      dead = true
+    }
+  }, [])
+
+  // Si salva solo DOPO che lo stato vero (Rust) è stato caricato: altrimenti il
+  // mirror locale, ancora stantio, sovrascriverebbe lo store all'avvio.
+  useEffect(() => {
+    if (!loaded) return
+    saveStateAsync(state)
+  }, [state, loaded])
 
   useEffect(() => {
     const iv = setInterval(() => setClock(Date.now()), 30000)
@@ -70,9 +97,13 @@ export default function App() {
   const glassesToday = Math.floor(totalToday / glass)
   const nowMs = clock
   const nextLabel = useMemo(() => {
+    if (isTauri()) {
+      if (nextAt == null) return null
+      return fmtCountdown(Math.max(0, nextAt - nowMs))
+    }
     const ms = nextReminderIn(nowMs)
     return ms == null ? null : fmtCountdown(ms)
-  }, [nowMs])
+  }, [nowMs, nextAt])
 
   useEffect(() => {
     if (!state.settings.autoInterval) return undefined
@@ -100,10 +131,7 @@ export default function App() {
       const goalMl = goalMlFor(s)
       return { ...s.settings, lastLogTs, goalMet: todayTotal >= goalMl }
     }
-    const onFire = () => {
-      setDue(true)
-      showMiniWindow()
-    }
+    const onFire = () => setDue(true)
     startReminders(getConfig, { onFire })
     const iv = setInterval(() => startReminders(getConfig, { onFire }), 60000)
     return () => {
@@ -131,59 +159,53 @@ export default function App() {
     }
   }, [logGlass])
 
+  // Desktop: Rust manda promemoria e tick anche col webview sospeso. Qui
+  // aggiorniamo il testo notifiche del menu e rileggiamo lo stato quando
+  // un'azione nativa (menu o finestrella) scrive al posto nostro.
   useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return undefined
+    if (!isTauri()) return undefined
     let dead = false
     let unlisten = () => {}
-    const pushTray = async (s) => {
-      const now = new Date()
-      const goalMl = goalMlFor(s, now)
-      const total = totalForDay(s.entries, dayKey(now))
-      const mlLeft = Math.max(0, goalMl - total)
-      const pct = Math.min(100, Math.round((total / goalMl) * 100))
-      const completato = total >= goalMl
-      const nextIn = nextReminderIn(now.getTime())
-      const later = completato
-        ? ''
-        : dueRef.current
-          ? '⏳ adesso'
-          : nextIn == null
-            ? ''
-            : `⏳ ${fmtCountdown(nextIn)}`
-      const start = new Date(now)
-      start.setHours(s.settings.startHour, 0, 0, 0)
-      const end = new Date(now)
-      end.setHours(s.settings.endHour, 0, 0, 0)
-      let time
-      if (now < start) time = t('tray.time.starts', { h: s.settings.startHour })
-      else if (now >= end) time = t('tray.time.closed', { h: s.settings.startHour })
-      else {
-        const h = Math.max(1, Math.round((end - now) / 3600000))
-        time = t('tray.time.left', { h, e: s.settings.endHour })
-      }
-      const title = completato
-        ? t('tray.done')
-        : `${later} ${pct}%`.trim()
-      const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('tray_update', {
-        title,
-        today: completato ? t('tray.alldone') : t('tray.today', { p: pct, m: mlLeft }),
-        time,
-        notify: t('tray.notif', { s: notifyStatusText() }),
-        drink: t('tray.drink') + (dueRef.current ? ` — ${t('tray.now')}` : '')
+
+    const push = async () => {
+      try {
+        await syncPermission()
+        await invoke('tray_update', { notify: t('tray.notif', { s: notifyStatusText() }) })
+      } catch {}
+    }
+    const syncNextAt = async () => {
+      try {
+        const at = await invoke('schedule_next_at')
+        if (!dead) setNextAt(at)
+      } catch {}
+    }
+    const refresh = () => {
+      setDue(false)
+      reloadStateAsync().then((s) => {
+        if (!dead) setState(s)
       })
     }
-    Promise.resolve()
-      .then(() => pushTray(stateRef.current))
-      .catch(() => {})
-    const iv = setInterval(() => pushTray(stateRef.current).catch(() => {}), 60000)
-    import('@tauri-apps/api/event')
-      .then(async ({ listen }) => {
-        const off = await Promise.all([
-          listen('tray:drink', () => logGlass()),
-          listen('mini:drink', () => logGlass()),
-          listen('mini:later', () => snoozeReminder())
+
+    push()
+    syncNextAt()
+    const iv = setInterval(() => {
+      push()
+      syncNextAt()
+    }, 30000)
+    const listenAll = () =>
+      import('@tauri-apps/api/event').then(({ listen }) =>
+        Promise.all([
+          listen('reminder:due', () => {
+            setDue(true)
+            syncNextAt()
+          }),
+          listen('tray:drink', refresh),
+          listen('mini:drink', refresh),
+          listen('tray:later', refresh)
         ])
+      )
+    listenAll()
+      .then((off) => {
         if (dead) off.forEach((fn) => fn())
         else unlisten = () => off.forEach((fn) => fn())
       })
@@ -193,7 +215,13 @@ export default function App() {
       unlisten()
       clearInterval(iv)
     }
-  }, [logGlass, state])
+  }, [])
+
+  // Il goal calcolato dal JS guida la barra del menu: spinto a Rust quando cambia.
+  useEffect(() => {
+    if (!isTauri() || !(goal > 0)) return
+    invoke('schedule_sync_goal', { goalMl: goal }).catch(() => {})
+  }, [goal])
 
   const logDrink = (ml) => {
     setDue(false)
@@ -203,9 +231,9 @@ export default function App() {
   const update = (patch) => setState((s) => ({ ...s, ...patch }))
   const updateSettings = (patch) =>
     setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }))
-  const reset = () => {
-    resetState()
-    setState(freshState())
+  const reset = async () => {
+    const fresh = await resetStateAsync()
+    setState(fresh || freshState())
   }
 
   return (
