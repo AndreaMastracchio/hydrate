@@ -1,30 +1,15 @@
 import { useEffect, useState } from 'react'
 import { getPermission, requestPermission, syncPermission } from '../lib/notify.js'
-import { goalBreakdown } from '../lib/hydrate.js'
+import { goalBreakdown, habitsToSchedule, HABIT_DEFAULTS } from '../lib/hydrate.js'
 import { t, dateLocale, fmtNum } from '../lib/i18n.js'
+import Toggle from '../components/Toggle.jsx'
+import HabitsForm from '../components/HabitsForm.jsx'
 
 const hh = (h) => `${String(h).padStart(2, '0')}:00`
 const factor = (f) => f.toLocaleString(dateLocale())
 
 const inputCls =
   'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none transition focus:border-cyan-500'
-
-function Toggle({ on, onChange, label }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={() => onChange(!on)}
-      className={`h-7 w-12 shrink-0 rounded-full p-1 transition ${on ? 'bg-cyan-500' : 'bg-slate-700'}`}
-    >
-      <span
-        className={`block h-5 w-5 rounded-full bg-white transition ${on ? 'translate-x-5' : ''}`}
-      />
-    </button>
-  )
-}
 
 function Section({ title, children }) {
   return (
@@ -37,6 +22,14 @@ function Section({ title, children }) {
 
 export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings, onReset }) {
   const [perm, setPerm] = useState(getPermission)
+
+  const hasHabits = !!state.settings.habits
+  const hb = { ...HABIT_DEFAULTS, ...(state.settings.habits || {}) }
+  const plan = habitsToSchedule(hb, { goalMl: goal, glassMl: state.glassMl || 250 })
+  const setHabit = (patch) => onSettings({ habits: { ...hb, ...patch } })
+  const setMeal = (k, v) => onSettings({ habits: { ...hb, meals: { ...hb.meals, [k]: v } } })
+  const setWorkout = (patch) =>
+    onSettings({ habits: { ...hb, workout: { ...hb.workout, ...patch } } })
 
   useEffect(() => {
     let alive = true
@@ -141,6 +134,23 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
         <p className="mt-1 text-xs text-slate-500">{t('profile.ob.balance')}</p>
       </Section>
 
+      <Section title={t('profile.habits')}>
+        <p className="mb-3 text-xs text-slate-500">{t('profile.habits.hint')}</p>
+        <HabitsForm hb={hb} setHabit={setHabit} setMeal={setMeal} setWorkout={setWorkout} />
+      </Section>
+
+      {hasHabits && plan && (
+        <Section title={t('profile.plan')}>
+          <p className="text-sm text-slate-200">
+            {t('prof.plan.window', { s: hh(plan.startHour), e: hh(plan.endHour) })}
+          </p>
+          <p className="mt-1 text-sm text-slate-200">{t('prof.plan.every', { n: plan.intervalMin })}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {t('prof.plan.glasses', { n: goalGlasses })}
+          </p>
+        </Section>
+      )}
+
       <Section title={t('profile.glass')}>
         <div className="flex gap-2">
           {[200, 250, 330, 500].map((ml) => (
@@ -188,21 +198,29 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
             />
           </div>
 
-          <label className={`flex flex-col gap-1 text-xs text-slate-400 ${state.settings.autoInterval ? 'opacity-50' : ''}`}>
-            {state.settings.autoInterval
-              ? t('prof.every.auto', { n: state.settings.intervalMin })
-              : t('prof.every', { n: state.settings.intervalMin })}
-            <input
-              type="range"
-              min="30"
-              max="240"
-              step="30"
-              value={state.settings.intervalMin}
-              disabled={state.settings.autoInterval}
-              onChange={(e) => onSettings({ intervalMin: Number(e.target.value) })}
-              className="accent-cyan-400"
-            />
-          </label>
+          {hasHabits ? (
+            <p className="text-xs text-slate-500">
+              {state.settings.autoInterval
+                ? t('prof.every.auto', { n: state.settings.intervalMin })
+                : t('prof.every', { n: state.settings.intervalMin })}
+            </p>
+          ) : (
+            <label className={`flex flex-col gap-1 text-xs text-slate-400 ${state.settings.autoInterval ? 'opacity-50' : ''}`}>
+              {state.settings.autoInterval
+                ? t('prof.every.auto', { n: state.settings.intervalMin })
+                : t('prof.every', { n: state.settings.intervalMin })}
+              <input
+                type="range"
+                min="30"
+                max="240"
+                step="30"
+                value={state.settings.intervalMin}
+                disabled={state.settings.autoInterval}
+                onChange={(e) => onSettings({ intervalMin: Number(e.target.value) })}
+                className="accent-cyan-400"
+              />
+            </label>
+          )}
 
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -213,7 +231,12 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
                       s: hh(state.settings.startHour),
                       e: hh(state.settings.endHour)
                     })
-                  : t('prof.when.manual')}
+                  : hasHabits
+                    ? t('prof.when.habits', {
+                        s: hh(state.settings.startHour),
+                        e: hh(state.settings.endHour)
+                      })
+                    : t('prof.when.manual')}
               </p>
             </div>
             <Toggle
@@ -223,32 +246,34 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
             />
           </div>
 
-          <div
-            className={`flex gap-3 ${state.settings.autoWindow ? 'pointer-events-none opacity-50' : ''}`}
-          >
-            <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
-              {t('prof.from')}
-              <input
-                className={inputCls}
-                type="time"
-                value={hh(state.settings.startHour)}
-                onChange={(e) =>
-                  onSettings({ startHour: Number(e.target.value.split(':')[0]), autoWindow: false })
-                }
-              />
-            </label>
-            <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
-              {t('prof.to')}
-              <input
-                className={inputCls}
-                type="time"
-                value={hh(state.settings.endHour)}
-                onChange={(e) =>
-                  onSettings({ endHour: Number(e.target.value.split(':')[0]), autoWindow: false })
-                }
-              />
-            </label>
-          </div>
+          {!hasHabits && (
+            <div
+              className={`flex gap-3 ${state.settings.autoWindow ? 'pointer-events-none opacity-50' : ''}`}
+            >
+              <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
+                {t('prof.from')}
+                <input
+                  className={inputCls}
+                  type="time"
+                  value={hh(state.settings.startHour)}
+                  onChange={(e) =>
+                    onSettings({ startHour: Number(e.target.value.split(':')[0]), autoWindow: false })
+                  }
+                />
+              </label>
+              <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
+                {t('prof.to')}
+                <input
+                  className={inputCls}
+                  type="time"
+                  value={hh(state.settings.endHour)}
+                  onChange={(e) =>
+                    onSettings({ endHour: Number(e.target.value.split(':')[0]), autoWindow: false })
+                  }
+                />
+              </label>
+            </div>
+          )}
 
           <ul className="flex flex-col gap-1 text-xs text-slate-500">
             <li>{t('prof.b.named')}</li>

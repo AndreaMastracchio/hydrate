@@ -15,7 +15,9 @@ import {
   computeGoal,
   activeWindow,
   goalBreakdown,
-  adaptedInterval
+  adaptedInterval,
+  habitsToSchedule,
+  HABIT_DEFAULTS
 } from './hydrate.js'
 
 const at = (y, m, d, h = 12, min = 0) => new Date(y, m - 1, d, h, min)
@@ -335,5 +337,65 @@ describe('adaptedInterval (intervallo che si adatta ai risultati)', () => {
 
   it('nessuna bevuta negli ultimi 7 giorni => non adatta', () => {
     expect(adaptedInterval(60, [], GOAL, T)).toBe(60)
+  })
+})
+
+describe('habitsToSchedule (abitudini -> finestra + intervallo, motore invariato)', () => {
+  const home = { ...HABIT_DEFAULTS, dayType: 'home', coffee: 0, alcohol: false, workout: { type: 'none', time: '18:00' } }
+  const opts = { goalMl: 2500, glassMl: 250 }
+
+  it('senza abitudini => null (il chiamante ripiega)', () => {
+    expect(habitsToSchedule(null, opts)).toBeNull()
+    expect(habitsToSchedule(undefined, opts)).toBeNull()
+  })
+
+  it('caso tipico: sveglia 7, sonno 23 -> finestra 7-22, intervallo = goal/bicchieri', () => {
+    const s = habitsToSchedule({ ...home, wake: '07:00', sleep: '23:00' }, opts)
+    expect(s).toEqual({ startHour: 7, endHour: 22, intervalMin: 100 })
+  })
+
+  it('lascia ~1h prima di dormire (end = sleep - 1)', () => {
+    expect(habitsToSchedule({ ...home, wake: '07:00', sleep: '23:00' }, opts).endHour).toBe(22)
+    expect(habitsToSchedule({ ...home, wake: '08:00', sleep: '00:30' }, opts).endHour).toBe(22)
+  })
+
+  it('sonno dopo mezzanotte (sleep <= wake) -> fine giornata a 22', () => {
+    const s = habitsToSchedule({ ...home, wake: '09:00', sleep: '01:00' }, opts)
+    expect(s.startHour).toBe(9)
+    expect(s.endHour).toBe(22)
+  })
+
+  it('giornata all’aperto accorcia l’intervallo (bevi più spesso)', () => {
+    const office = habitsToSchedule({ ...home, dayType: 'office' }, opts).intervalMin
+    const outdoor = habitsToSchedule({ ...home, dayType: 'outdoor' }, opts).intervalMin
+    expect(outdoor).toBeLessThan(office)
+    expect(outdoor).toBe(90)
+  })
+
+  it('alcol e sport intenso accorciano l’intervallo', () => {
+    expect(habitsToSchedule({ ...home, alcohol: true }, opts).intervalMin).toBe(90)
+    expect(habitsToSchedule({ ...home, workout: { type: 'intense' } }, opts).intervalMin).toBe(95)
+  })
+
+  it('3+ caffè accorciano un po’', () => {
+    expect(habitsToSchedule({ ...home, coffee: 3 }, opts).intervalMin).toBe(90)
+    expect(habitsToSchedule({ ...home, coffee: 1 }, opts).intervalMin).toBe(100)
+  })
+
+  it('clamp 30..240', () => {
+    const tight = habitsToSchedule({ ...home, wake: '10:00', sleep: '18:00' }, { goalMl: 4000, glassMl: 200 })
+    expect(tight.intervalMin).toBe(30)
+    const loose = habitsToSchedule({ ...home }, { goalMl: 1500, glassMl: 500 })
+    expect(loose.intervalMin).toBe(240)
+  })
+
+  it('orari invalidi ripiegano sui default', () => {
+    const s = habitsToSchedule({ ...home, wake: 'xx', sleep: '' }, opts)
+    expect(s.startHour).toBe(7)
+    expect(s.endHour).toBe(22)
+  })
+
+  it('parse di HH:MM usa l’ora', () => {
+    expect(habitsToSchedule({ ...home, wake: '06:45' }, opts).startHour).toBe(6)
   })
 })

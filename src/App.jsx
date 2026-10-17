@@ -7,7 +7,7 @@ import {
   resetStateAsync,
   freshState
 } from './lib/storage.js'
-import { addEntry, removeLastEntryOfDay, dayKey, totalForDay, currentStreak, computeGoal, activeWindow, adaptedInterval } from './lib/hydrate.js'
+import { addEntry, removeLastEntryOfDay, dayKey, totalForDay, currentStreak, computeGoal, activeWindow, adaptedInterval, habitsToSchedule } from './lib/hydrate.js'
 import { t, setLocale, fmtCountdown } from './lib/i18n.js'
 import {
   startReminders,
@@ -18,6 +18,7 @@ import {
   nextReminderIn
 } from './lib/notify.js'
 import BottomNav from './components/BottomNav.jsx'
+import Onboarding from './components/Onboarding.jsx'
 import Home from './pages/Home.jsx'
 import Stats from './pages/Stats.jsx'
 import Profile from './pages/Profile.jsx'
@@ -78,20 +79,52 @@ export default function App() {
     return () => clearInterval(iv)
   }, [])
 
-  useEffect(() => {
-    if (!state.settings.autoWindow) return undefined
-    setState((s) => {
-      if (!s.settings.autoWindow) return s
-      const w = activeWindow(s.entries, new Date(), { startHour: 9, endHour: 22 })
-      if (w.startHour === s.settings.startHour && w.endHour === s.settings.endHour) return s
-      return { ...s, settings: { ...s.settings, ...w } }
-    })
-  }, [state.entries, state.settings.autoWindow, state.settings.startHour, state.settings.endHour])
-
   const todayKey = dayKey(new Date())
   const totalToday = totalForDay(state.entries, todayKey)
   const glass = glassOf(state)
   const goal = useMemo(() => goalMlFor(state), [state])
+
+  // Le abitudini sono il "priore" del piano. Il motore (Rust) continua a
+  // leggere solo startHour/endHour/intervalMin: qui traduciamo le abitudini in
+  // quei tre numeri, una sola volta per ogni modifica delle abitudini.
+  const habits = state.settings.habits ?? null
+  const habitsKey = useMemo(() => JSON.stringify(habits), [habits])
+  const habitPlan = useMemo(
+    () => habitsToSchedule(habits, { goalMl: goal, glassMl: glass }),
+    [habits, goal, glass]
+  )
+  const appliedPlanRef = useRef(null)
+
+  useEffect(() => {
+    if (!habitPlan) return
+    if (appliedPlanRef.current === habitsKey) return
+    appliedPlanRef.current = habitsKey
+    setState((s) => {
+      const c = s.settings
+      if (c.startHour === habitPlan.startHour && c.endHour === habitPlan.endHour && c.intervalMin === habitPlan.intervalMin && c.lastAdjusted === '') {
+        return s
+      }
+      return { ...s, settings: { ...c, startHour: habitPlan.startHour, endHour: habitPlan.endHour, intervalMin: habitPlan.intervalMin, lastAdjusted: '' } }
+    })
+  }, [habitsKey, habitPlan])
+
+  // Finestra: le abitudini danno la base; se autoWindow è acceso la fascia si
+  // allarga sulle ore in cui bevi davvero. Senza abitudini resta il vecchio
+  // comportamento (l'utente ha ancora orari manuali).
+  useEffect(() => {
+    setState((s) => {
+      if (!s.settings.autoWindow) {
+        if (!habitPlan) return s
+        if (habitPlan.startHour === s.settings.startHour && habitPlan.endHour === s.settings.endHour) return s
+        return { ...s, settings: { ...s.settings, startHour: habitPlan.startHour, endHour: habitPlan.endHour } }
+      }
+      const base = habitPlan ? { startHour: habitPlan.startHour, endHour: habitPlan.endHour } : { startHour: 9, endHour: 22 }
+      const w = activeWindow(s.entries, new Date(), base)
+      if (w.startHour === s.settings.startHour && w.endHour === s.settings.endHour) return s
+      return { ...s, settings: { ...s.settings, ...w } }
+    })
+  }, [state.entries, state.settings.autoWindow, state.settings.startHour, state.settings.endHour, habitPlan])
+
   const streak = currentStreak(state.entries, goal)
   const goalGlasses = Math.max(1, Math.ceil(goal / glass))
   const glassesToday = Math.floor(totalToday / glass)
@@ -236,8 +269,17 @@ export default function App() {
     setState(fresh || freshState())
   }
 
+  const needOnboarding = loaded && !state.settings.habits
+
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col">
+      {needOnboarding && (
+        <Onboarding
+          goal={goal}
+          glassMl={glass}
+          onDone={(habits) => updateSettings({ habits })}
+        />
+      )}
       <main className="flex-1 px-5 pt-6 pb-28">
         {tab === 'home' && (
           <Home
