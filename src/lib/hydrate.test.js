@@ -302,7 +302,12 @@ describe('goalBreakdown (conto trasparente del goal)', () => {
     expect(b.seasonFactor).toBe(1)
     expect(b.rounded).toBe(2400)
     expect(b.glasses).toBe(10)
-    expect(b.activityLabel).toBe('Sedentario')
+    expect(b.activityKey).toBe('sedentary')
+  })
+
+  it('chiave attività sconosciuta ricade su moderate', () => {
+    const b = goalBreakdown(72, 'boh', at(2026, 3, 10))
+    expect(b.activityKey).toBe('moderate')
   })
 
   it('estate alza il fattore stagionale', () => {

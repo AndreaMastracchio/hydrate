@@ -13,7 +13,10 @@ mod strings;
 
 use schedule::{compose_title, next_delay, ScheduleCfg};
 use store::{state_path, AppState, SharedStore, Store};
-use strings::{is_en, tray_alldone, tray_drink, tray_notif, tray_snooze, tray_time, tray_today};
+use strings::{
+  is_en, tray_alldone, tray_drink, tray_notif, tray_open, tray_quit, tray_snooze, tray_test,
+  tray_test_body, tray_test_err, tray_test_ok, tray_time, tray_today,
+};
 
 const TICK_SECS: u64 = 20;
 const SNOOZE_MIN: u32 = 15;
@@ -36,6 +39,9 @@ pub struct TrayState {
   notify_item: MenuItem<tauri::Wry>,
   drink_item: MenuItem<tauri::Wry>,
   snooze_item: MenuItem<tauri::Wry>,
+  open_item: MenuItem<tauri::Wry>,
+  test_item: MenuItem<tauri::Wry>,
+  quit_item: MenuItem<tauri::Wry>,
   meta: Mutex<TrayMeta>,
 }
 
@@ -58,16 +64,41 @@ fn send_notification(app: &AppHandle, title: &str, body: &str) -> Result<(), Str
   }
 }
 
+/// Voce «Prova notifica»: invia la notifica e NON ingoia l'esito — lo scrive
+/// nello stato del menu, così un fallimento è visibile invece che silenzioso.
+fn test_notification(app: &AppHandle) {
+  let en = {
+    let store = app.state::<SharedStore>();
+    store
+      .0
+      .lock()
+      .map(|s| is_en(&s.state.lang))
+      .unwrap_or(false)
+  };
+  let result = send_notification(app, "Hydrate", tray_test_body(en));
+  if let Some(tray) = app.try_state::<TrayState>()
+    && let Ok(mut meta) = tray.meta.lock()
+  {
+    meta.notify_text = match result {
+      Ok(()) => tray_test_ok(en).to_string(),
+      Err(e) => {
+        log::warn!("test notifica fallito: {e}");
+        tray_test_err(en).to_string()
+      }
+    };
+  }
+  refresh_tray(app);
+}
+
 /// Il display col menu bar è quello con origine (0,0): `primary_monitor()` su
 /// macOS può restituirne un altro, e il popup finirebbe sullo schermo sbagliato.
 fn main_monitor(app: &AppHandle) -> Option<tauri::Monitor> {
-  if let Ok(mons) = app.available_monitors() {
-    if let Some(m) = mons
+  if let Ok(mons) = app.available_monitors()
+    && let Some(m) = mons
       .into_iter()
       .find(|m| m.position().x == 0 && m.position().y == 0)
-    {
-      return Some(m);
-    }
+  {
+    return Some(m);
   }
   app.primary_monitor().ok().flatten()
 }
@@ -121,7 +152,7 @@ fn refresh_tray(app: &AppHandle) {
     return;
   };
   let now = now_ms();
-  let (title, today, time, notify, drink, snooze);
+  let (title, today, time, notify, drink, snooze, en);
   {
     let store = app.state::<SharedStore>();
     let Ok(s) = store.0.lock() else {
@@ -129,9 +160,11 @@ fn refresh_tray(app: &AppHandle) {
     };
     let total = s.state.total_today(now);
     let goal = s.goal_ml();
-    let pct = ((total as f64 / goal as f64) * 100.0).round().clamp(0.0, 100.0) as u32;
+    let pct = ((total as f64 / goal as f64) * 100.0)
+      .round()
+      .clamp(0.0, 100.0) as u32;
     let goal_met = total >= goal;
-    let en = is_en(&s.state.lang);
+    en = is_en(&s.state.lang);
     let ml_left = goal.saturating_sub(total);
     let notify_status = tray
       .meta
@@ -144,7 +177,12 @@ fn refresh_tray(app: &AppHandle) {
     } else {
       tray_today(pct, ml_left, en)
     };
-    time = tray_time(now, s.state.settings.start_hour, s.state.settings.end_hour, en);
+    time = tray_time(
+      now,
+      s.state.settings.start_hour,
+      s.state.settings.end_hour,
+      en,
+    );
     notify = tray_notif(&notify_status, en);
     drink = tray_drink(en, s.fired_unconfirmed);
     snooze = tray_snooze(en).to_string();
@@ -157,6 +195,9 @@ fn refresh_tray(app: &AppHandle) {
   let _ = tray.notify_item.set_text(notify);
   let _ = tray.drink_item.set_text(drink);
   let _ = tray.snooze_item.set_text(snooze);
+  let _ = tray.open_item.set_text(tray_open(en));
+  let _ = tray.test_item.set_text(tray_test(en));
+  let _ = tray.quit_item.set_text(tray_quit(en));
 }
 
 fn scheduler_tick(app: &AppHandle) {
@@ -223,11 +264,7 @@ fn tray_update(state: State<'_, TrayState>, notify: String) -> Result<(), String
 #[tauri::command]
 fn state_load(app: AppHandle) -> AppState {
   let store = app.state::<SharedStore>();
-  store
-    .0
-    .lock()
-    .map(|s| s.state.clone())
-    .unwrap_or_default()
+  store.0.lock().map(|s| s.state.clone()).unwrap_or_default()
 }
 
 #[tauri::command]
@@ -294,7 +331,8 @@ pub fn run() {
       schedule_next_at
     ])
     .setup(|app| {
-      app.handle()
+      app
+        .handle()
         .set_activation_policy(tauri::ActivationPolicy::Accessory)?;
 
       if cfg!(debug_assertions) {
@@ -312,7 +350,8 @@ pub fn run() {
 
       let today_item = MenuItem::with_id(app, "status-today", "Oggi: —", false, None::<&str>)?;
       let time_item = MenuItem::with_id(app, "status-time", "La giornata: —", false, None::<&str>)?;
-      let notify_item = MenuItem::with_id(app, "status-notify", "Notifiche: —", false, None::<&str>)?;
+      let notify_item =
+        MenuItem::with_id(app, "status-notify", "Notifiche: —", false, None::<&str>)?;
       let separator = PredefinedMenuItem::separator(app)?;
       let drink_i = MenuItem::with_id(app, "drink", "Bevi un bicchiere 💧", true, None::<&str>)?;
       let snooze_i = MenuItem::with_id(app, "snooze", "Rimanda 15 min", true, None::<&str>)?;
@@ -346,11 +385,7 @@ pub fn run() {
             let _ = snooze_now(app);
           }
           "test-notif" => {
-            let _ = send_notification(
-              app,
-              "Hydrate",
-              "Prova notifica — se senti il suono, le notifiche funzionano 💧",
-            );
+            test_notification(app);
           }
           "open" => {
             if let Some(window) = app.get_webview_window("main") {
@@ -371,6 +406,9 @@ pub fn run() {
         notify_item: notify_item.clone(),
         drink_item: drink_i.clone(),
         snooze_item: snooze_i.clone(),
+        open_item: open_i.clone(),
+        test_item: test_i.clone(),
+        quit_item: quit_i.clone(),
         meta: Mutex::new(TrayMeta {
           notify_text: "—".into(),
         }),
@@ -379,9 +417,11 @@ pub fn run() {
       refresh_tray(app.handle());
 
       let tick_handle = app.handle().clone();
-      std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(TICK_SECS));
-        scheduler_tick(&tick_handle);
+      std::thread::spawn(move || {
+        loop {
+          std::thread::sleep(Duration::from_secs(TICK_SECS));
+          scheduler_tick(&tick_handle);
+        }
       });
 
       Ok(())

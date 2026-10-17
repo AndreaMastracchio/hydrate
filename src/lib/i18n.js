@@ -94,6 +94,9 @@ const dict = {
     it: 'Imposta il peso qui sopra: quel numero è la base del conto.',
     en: 'Set your weight above: it is the base of the math.'
   },
+  'profile.act.sedentary': { it: 'sedentario', en: 'sedentary' },
+  'profile.act.moderate': { it: 'moderato', en: 'moderate' },
+  'profile.act.active': { it: 'sportivo', en: 'active' },
   'profile.ob.balance': {
     it: 'Lo bilanciamo anche con la media dei tuoi ultimi 7 giorni di bevute (mai sotto 1.500, mai sopra 4.000 ml).',
     en: 'We balance it with your last-7-days average (never below 1,500, never above 4,000 ml).'

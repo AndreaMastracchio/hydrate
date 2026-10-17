@@ -129,12 +129,7 @@ pub fn compose_title(
 
 pub fn today_key(ms: i64) -> String {
   let d = local_from_ms(ms);
-  format!(
-    "{:04}-{:02}-{:02}",
-    d.year(),
-    d.month(),
-    d.day()
-  )
+  format!("{:04}-{:02}-{:02}", d.year(), d.month(), d.day())
 }
 
 pub fn day_key_of(ts: i64) -> String {
@@ -165,9 +160,36 @@ mod tests {
 
   #[test]
   fn disabled_goal_or_bad_interval_gives_none() {
-    assert_eq!(next_delay(&ScheduleCfg { enabled: false, ..W }, at(10, 0)), None);
-    assert_eq!(next_delay(&ScheduleCfg { goal_met: true, ..W }, at(10, 0)), None);
-    assert_eq!(next_delay(&ScheduleCfg { interval_min: 0, ..W }, at(10, 0)), None);
+    assert_eq!(
+      next_delay(
+        &ScheduleCfg {
+          enabled: false,
+          ..W
+        },
+        at(10, 0)
+      ),
+      None
+    );
+    assert_eq!(
+      next_delay(
+        &ScheduleCfg {
+          goal_met: true,
+          ..W
+        },
+        at(10, 0)
+      ),
+      None
+    );
+    assert_eq!(
+      next_delay(
+        &ScheduleCfg {
+          interval_min: 0,
+          ..W
+        },
+        at(10, 0)
+      ),
+      None
+    );
   }
 
   #[test]
@@ -179,22 +201,40 @@ mod tests {
   #[test]
   fn interval_counts_from_last_log() {
     let last = at(10, 0);
-    let cfg = ScheduleCfg { last_log_ts: last, ..W };
+    let cfg = ScheduleCfg {
+      last_log_ts: last,
+      ..W
+    };
     assert_eq!(next_delay(&cfg, at(10, 30)), Some(30 * MIN_MS));
     assert_eq!(next_delay(&cfg, at(12, 30)), Some(0));
   }
 
   #[test]
   fn recent_log_pushes_forward() {
-    let d = next_delay(&ScheduleCfg { last_log_ts: at(10, 0), ..W }, at(10, 30));
-    let d2 = next_delay(&ScheduleCfg { last_log_ts: at(10, 30), ..W }, at(10, 30));
+    let d = next_delay(
+      &ScheduleCfg {
+        last_log_ts: at(10, 0),
+        ..W
+      },
+      at(10, 30),
+    );
+    let d2 = next_delay(
+      &ScheduleCfg {
+        last_log_ts: at(10, 30),
+        ..W
+      },
+      at(10, 30),
+    );
     assert_eq!(d, Some(30 * MIN_MS));
     assert_eq!(d2, Some(60 * MIN_MS));
   }
 
   #[test]
   fn outside_window_waits_for_open_never_night() {
-    let cfg = ScheduleCfg { last_log_ts: at(10, 0), ..W };
+    let cfg = ScheduleCfg {
+      last_log_ts: at(10, 0),
+      ..W
+    };
     assert_eq!(next_delay(&cfg, at(23, 30)), Some(9 * H + H / 2));
     assert_eq!(next_delay(&cfg, at(7, 0)), Some(2 * H));
   }
@@ -217,9 +257,18 @@ mod tests {
   fn compose_title_cases() {
     let now = at(10, 0);
     assert_eq!(compose_title(50, true, None, false, now, false), "✓ 100%");
-    assert_eq!(compose_title(50, false, Some(now + 30 * MIN_MS), false, now, false), "⏳ tra 30 min 50%");
-    assert_eq!(compose_title(50, false, Some(now + 30 * MIN_MS), false, now, true), "⏳ in 30 min 50%");
-    assert_eq!(compose_title(50, false, None, true, now, false), "⏳ adesso 50%");
+    assert_eq!(
+      compose_title(50, false, Some(now + 30 * MIN_MS), false, now, false),
+      "⏳ tra 30 min 50%"
+    );
+    assert_eq!(
+      compose_title(50, false, Some(now + 30 * MIN_MS), false, now, true),
+      "⏳ in 30 min 50%"
+    );
+    assert_eq!(
+      compose_title(50, false, None, true, now, false),
+      "⏳ adesso 50%"
+    );
     assert_eq!(compose_title(50, false, None, false, now, false), "50%");
   }
 }

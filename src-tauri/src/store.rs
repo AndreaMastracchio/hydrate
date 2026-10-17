@@ -155,11 +155,7 @@ impl Store {
   }
 
   pub fn goal_ml(&self) -> u32 {
-    if self.goal_ml > 0 {
-      self.goal_ml
-    } else {
-      2000
-    }
+    if self.goal_ml > 0 { self.goal_ml } else { 2000 }
   }
 
   pub fn is_empty(&self) -> bool {
@@ -179,7 +175,10 @@ mod tests {
   use std::time::{SystemTime, UNIX_EPOCH};
 
   fn tmp_store() -> (Store, PathBuf) {
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    let nanos = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap()
+      .as_nanos();
     let dir = std::env::temp_dir().join(format!("hydrate-store-test-{nanos}"));
     fs::create_dir_all(&dir).unwrap();
     let path = state_path(&dir);
@@ -188,7 +187,14 @@ mod tests {
 
   fn noon_today() -> i64 {
     let now = chrono::Local::now();
-    now.with_hour(12).unwrap().with_minute(0).unwrap().with_second(0).unwrap().timestamp_millis()
+    now
+      .with_hour(12)
+      .unwrap()
+      .with_minute(0)
+      .unwrap()
+      .with_second(0)
+      .unwrap()
+      .timestamp_millis()
   }
 
   use chrono::Timelike;
@@ -237,7 +243,12 @@ mod tests {
     let parsed: AppState = serde_json::from_str(raw).unwrap();
     store.save(parsed);
     let reloaded = Store::load(&path);
-    let h = reloaded.state.settings.habits.as_ref().expect("habits conservate");
+    let h = reloaded
+      .state
+      .settings
+      .habits
+      .as_ref()
+      .expect("habits conservate");
     assert_eq!(h["dayType"], "outdoor");
     assert_eq!(h["coffee"], 3);
     assert_eq!(h["workout"]["type"], "intense");

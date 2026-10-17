@@ -21,13 +21,7 @@ pub fn tray_today(pct: u32, ml_left: u32, en: bool) -> String {
   } else {
     "Oggi {p}% · mancano {m} ml"
   };
-  fmt(
-    tpl,
-    &[
-      ("p", pct.to_string()),
-      ("m", ml_left.to_string()),
-    ],
-  )
+  fmt(tpl, &[("p", pct.to_string()), ("m", ml_left.to_string())])
 }
 
 pub fn tray_alldone(en: bool) -> &'static str {
@@ -66,10 +60,7 @@ pub fn tray_time(now_ms: i64, start_hour: u32, end_hour: u32, en: bool) -> Strin
       } else {
         "Restano {h}h alla giornata (fino alle {e}:00)"
       },
-      &[
-        ("h", h_left.to_string()),
-        ("e", end_hour.to_string()),
-      ],
+      &[("h", h_left.to_string()), ("e", end_hour.to_string())],
     )
   }
 }
@@ -107,6 +98,44 @@ pub fn tray_snooze(en: bool) -> &'static str {
   }
 }
 
+pub fn tray_open(en: bool) -> &'static str {
+  if en { "Open Hydrate" } else { "Apri Hydrate" }
+}
+
+pub fn tray_quit(en: bool) -> &'static str {
+  if en { "Quit" } else { "Esci" }
+}
+
+pub fn tray_test(en: bool) -> &'static str {
+  if en {
+    "Test notification"
+  } else {
+    "Prova notifica"
+  }
+}
+
+/// Esito del test notifica (voce «Prova notifica»): l'errore non si ingoia,
+/// si mostra nello stato del menu.
+pub fn tray_test_ok(en: bool) -> &'static str {
+  if en {
+    "✓ Ping sent"
+  } else {
+    "✓ Ping inviato"
+  }
+}
+
+pub fn tray_test_err(en: bool) -> &'static str {
+  if en { "✗ failed" } else { "✗ non riuscita" }
+}
+
+pub fn tray_test_body(en: bool) -> &'static str {
+  if en {
+    "Test notification — if you hear the sound, notifications work 💧"
+  } else {
+    "Prova notifica — se senti il suono, le notifiche funzionano 💧"
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -119,5 +148,17 @@ mod tests {
     assert_eq!(tray_drink(false, false), "Bevi un bicchiere 💧");
     assert_eq!(tray_drink(false, true), "Bevi un bicchiere 💧 — ora!");
     assert_eq!(tray_drink(true, true), "Drink a glass 💧 — now!");
+  }
+
+  #[test]
+  fn static_menu_items_follow_language() {
+    assert_eq!(tray_open(false), "Apri Hydrate");
+    assert_eq!(tray_open(true), "Open Hydrate");
+    assert_eq!(tray_quit(false), "Esci");
+    assert_eq!(tray_quit(true), "Quit");
+    assert_eq!(tray_test(false), "Prova notifica");
+    assert_eq!(tray_test(true), "Test notification");
+    assert_eq!(tray_test_ok(false), "✓ Ping inviato");
+    assert_eq!(tray_test_err(true), "✗ failed");
   }
 }
