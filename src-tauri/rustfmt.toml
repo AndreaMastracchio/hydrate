@@ -1,0 +1,5 @@
+# Stile del progetto: 2 spazi, come il resto del repo (JS/JSX).
+# reorder_imports=false per non riscrivere l'ordine degli `use` a mano
+# (es. `AppHandle, Emitter, ...` prima dei moduli annidati).
+tab_spaces = 2
+reorder_imports = false

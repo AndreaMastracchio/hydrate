@@ -1,10 +1,10 @@
 [package]
 name = "app"
 version = "0.1.4"
-description = "A Tauri App"
-authors = ["you"]
+description = "Hydrate — ricordati di bere: promemoria che si regolano sulle tue abitudini"
+authors = ["Andrea Mastracchio"]
 license = "MIT"
-repository = ""
+repository = "https://github.com/AndreaMastracchio/hydrate"
 edition = "2024"
 rust-version = "1.90"
 

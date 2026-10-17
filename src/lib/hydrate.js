@@ -121,7 +121,7 @@ export function weeklyBars(entries, goal, n, today = new Date()) {
 }
 
 const ACTIVITY_FACTOR = { sedentary: 1, moderate: 1.1, active: 1.25 }
-const ACTIVITY_LABEL = { sedentary: 'Sedentario', moderate: 'Moderato', active: 'Sportivo' }
+const ACTIVITY_KEYS = ['sedentary', 'moderate', 'active']
 const seasonFactor = (month) => (month >= 4 && month <= 8 ? 1.06 : month === 3 || month === 9 ? 1.03 : 1)
 
 export function mlFactors(weightKg, activity, date) {
@@ -141,7 +141,7 @@ export function goalBreakdown(weightKg, activity, date) {
   return {
     base: f.base,
     activityFactor: f.activityFactor,
-    activityLabel: ACTIVITY_LABEL[activity] ?? 'Moderato',
+    activityKey: ACTIVITY_KEYS.includes(activity) ? activity : 'moderate',
     seasonFactor: f.seasonFactor,
     raw: f.raw,
     rounded,

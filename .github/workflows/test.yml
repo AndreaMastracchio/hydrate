@@ -6,6 +6,7 @@ on:
   pull_request:
 
 jobs:
+  # Frontend: test (Vitest), lint (ESLint) e build (Vite).
   test:
     runs-on: ubuntu-latest
     steps:
@@ -16,3 +17,29 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+
+  # Shell nativa (Rust/Tauri): formattazione, lint e test. Su macOS perché
+  # l'app è macOS-only (mac-notification-sys) e non servono dipendenze di sistema.
+  # `npm run build` prima di cargo: generate_context! incorpora dist/ a compile time.
+  rust:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm run build
+      - run: cargo fmt --all --check
+        working-directory: src-tauri
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: src-tauri
+      - run: cargo test
+        working-directory: src-tauri

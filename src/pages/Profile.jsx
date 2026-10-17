@@ -120,7 +120,7 @@ export default function Profile({ state, goal, goalGlasses, onUpdate, onSettings
               return t('profile.ob.formula', {
                 base: fmtNum(b.base),
                 w: state.settings.weightKg,
-                act: b.activityLabel.toLowerCase(),
+                act: t(`profile.act.${b.activityKey}`),
                 af: factor(b.activityFactor),
                 sf: factor(b.seasonFactor),
                 round: fmtNum(b.rounded),
