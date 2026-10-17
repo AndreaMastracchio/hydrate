@@ -47,6 +47,39 @@ const dict = {
   'prof.sedentary': { it: 'Poco (scrivania, pc)', en: 'Light (desk, pc)' },
   'prof.moderate': { it: 'Moderato (cammino…)', en: 'Moderate (walking…)' },
   'prof.active': { it: 'Molto (sport, lavoro fisico)', en: 'Heavy (sport, physical work)' },
+  'profile.habits': { it: 'Le tue abitudini', en: 'Your habits' },
+  'profile.habits.hint': {
+    it: 'Due domande e siamo noi a decidere quando farti bere.',
+    en: 'A few questions and we decide when to remind you.'
+  },
+  'prof.h.wake': { it: 'Mi sveglio', en: 'I wake up' },
+  'prof.h.sleep': { it: 'Vado a dormire', en: 'I go to bed' },
+  'prof.h.meals': { it: 'Pasti', en: 'Meals' },
+  'prof.h.breakfast': { it: 'Colazione', en: 'Breakfast' },
+  'prof.h.lunch': { it: 'Pranzo', en: 'Lunch' },
+  'prof.h.dinner': { it: 'Cena', en: 'Dinner' },
+  'prof.h.workout': { it: 'Attività fisica', en: 'Exercise' },
+  'prof.h.workout.time': { it: 'A che ora', en: 'What time' },
+  'prof.h.workout.none': { it: 'Nessuna', en: 'None' },
+  'prof.h.workout.light': { it: 'Leggera', en: 'Light' },
+  'prof.h.workout.intense': { it: 'Intensa', en: 'Intense' },
+  'prof.h.coffee': { it: 'Caffè al giorno', en: 'Coffees a day' },
+  'prof.h.alcohol': { it: 'Bevo alcol', en: 'I drink alcohol' },
+  'prof.h.dayType': { it: 'Tipo di giornata', en: 'Kind of day' },
+  'prof.h.day.office': { it: 'Ufficio', en: 'Office' },
+  'prof.h.day.home': { it: 'Casa', en: 'Home' },
+  'prof.h.day.outdoor': { it: 'Fuori', en: 'Outdoors' },
+  'profile.plan': { it: 'Il tuo piano', en: 'Your plan' },
+  'prof.plan.window': { it: 'Ti ricordiamo dalle {s} alle {e}', en: 'We remind you from {s} to {e}' },
+  'prof.plan.every': { it: 'Un bicchiere ogni {n} minuti', en: 'A glass every {n} minutes' },
+  'prof.plan.glasses': {
+    it: '≈ {n} bicchieri nella giornata, calcolati sulle tue abitudini.',
+    en: '≈ {n} glasses a day, derived from your habits.'
+  },
+  'prof.when.habits': {
+    it: 'Seguono le tue abitudini: dalle {s} alle {e}.',
+    en: 'Following your habits: from {s} to {e}.'
+  },
   'profile.glass': { it: 'Il bicchiere', en: 'The glass' },
   'profile.glass.hint': {
     it: 'Quanto ci metti? È il modo in cui contiamo: «un bicchiere».',
@@ -120,6 +153,14 @@ const dict = {
     it: 'Hydrate {v} — gratis, senza account, senza ads.',
     en: 'Hydrate {v} — free, no account, no ads.'
   },
+
+  'onb.title': { it: 'Benvenuto in Hydrate', en: 'Welcome to Hydrate' },
+  'onb.sub': {
+    it: 'Dicci come vive la tua giornata: pensiamo noi a quando farti bere.',
+    en: 'Tell us about your day: we will figure out when to remind you.'
+  },
+  'onb.start': { it: 'Inizia', en: 'Get started' },
+  'onb.skip': { it: 'Salta, usa i valori di base', en: 'Skip, use defaults' },
 
   'mini.close': { it: 'Chiudi', en: 'Close' },
 

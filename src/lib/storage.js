@@ -14,7 +14,8 @@ export const DEFAULTS = {
     autoInterval: true,
     lastAdjusted: '',
     weightKg: null,
-    activity: 'moderate'
+    activity: 'moderate',
+    habits: null
   }
 }
 

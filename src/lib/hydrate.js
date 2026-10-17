@@ -179,6 +179,54 @@ export function activeWindow(entries, today = new Date(), fallback = { startHour
   return { startHour: start, endHour: end }
 }
 
+// Le abitudini sono il "priore" del piano: da qui deriviamo la finestra della
+// giornata e un intervallo regolare. Il motore (Rust) continua a consumare solo
+// startHour/endHour/intervalMin, quindi non va toccato.
+export const HABIT_DEFAULTS = {
+  wake: '07:00',
+  sleep: '23:00',
+  meals: { breakfast: '07:30', lunch: '13:00', dinner: '20:00' },
+  workout: { type: 'none', time: '18:00' },
+  coffee: 2,
+  alcohol: false,
+  dayType: 'home'
+}
+
+const parseHour = (s, fallback) => {
+  const m = /^\s*(\d{1,2})/.exec(String(s ?? ''))
+  if (!m) return fallback
+  const h = Number(m[1])
+  return Number.isFinite(h) && h >= 0 && h <= 23 ? h : fallback
+}
+
+const clampInt = (n, lo, hi) => Math.min(hi, Math.max(lo, n))
+
+export function habitsToSchedule(habits, opts = {}) {
+  if (!habits) return null
+  const wake = parseHour(habits.wake, 7)
+  const sleep = parseHour(habits.sleep, 23)
+  const goalMl = opts.goalMl > 0 ? opts.goalMl : 2000
+  const glassMl = opts.glassMl > 0 ? opts.glassMl : 250
+
+  const startHour = clampInt(wake, 5, 10)
+  const rawEnd = sleep <= startHour ? 23 : sleep
+  const endHour = clampInt(rawEnd - 1, startHour + 6, 23)
+
+  const windowMin = (endHour - startHour) * 60
+  const glasses = Math.max(2, Math.ceil(goalMl / glassMl))
+  const slots = Math.max(1, glasses - 1)
+  let interval = windowMin / slots
+
+  let factor = 1
+  if (habits.dayType === 'outdoor') factor *= 0.9
+  if ((habits.coffee || 0) >= 3) factor *= 0.92
+  if (habits.alcohol) factor *= 0.9
+  if (habits.workout?.type === 'intense') factor *= 0.95
+
+  interval = Math.round((interval * factor) / 5) * 5
+  return { startHour, endHour, intervalMin: clampInt(interval, 30, 240) }
+}
+
 export function adaptedInterval(currentInterval, entries, goal, today = new Date()) {
   const current = Math.max(30, Math.min(240, currentInterval))
   if (!(goal > 0)) return current

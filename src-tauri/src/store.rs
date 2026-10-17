@@ -28,6 +28,10 @@ pub struct Settings {
   pub last_adjusted: String,
   pub weight_kg: Option<f64>,
   pub activity: String,
+  // Abitudini: forma posseduta dalla UI (JS). Rust non la interpreta, la
+  // conserva soltanto — senza questo campo il round-trip la perderebbe.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub habits: Option<serde_json::Value>,
 }
 
 impl Default for Settings {
@@ -42,6 +46,7 @@ impl Default for Settings {
       last_adjusted: String::new(),
       weight_kg: None,
       activity: "moderate".into(),
+      habits: None,
     }
   }
 }
@@ -223,6 +228,29 @@ mod tests {
     assert!(back.contains("intervalMin"));
     assert!(back.contains("weightKg"));
     let _ = fs::remove_dir_all(path.parent().unwrap());
+  }
+
+  #[test]
+  fn habits_roundtrip_survives_without_being_understood() {
+    let (mut store, path) = tmp_store();
+    let raw = r#"{"name":"A","lang":"it","glassMl":250,"entries":[],"settings":{"enabled":true,"intervalMin":60,"startHour":7,"endHour":22,"autoWindow":false,"autoInterval":false,"lastAdjusted":"","weightKg":72.0,"activity":"moderate","habits":{"wake":"07:00","sleep":"23:00","coffee":3,"alcohol":true,"dayType":"outdoor","meals":{"lunch":"13:00"},"workout":{"type":"intense"}}}}"#;
+    let parsed: AppState = serde_json::from_str(raw).unwrap();
+    store.save(parsed);
+    let reloaded = Store::load(&path);
+    let h = reloaded.state.settings.habits.as_ref().expect("habits conservate");
+    assert_eq!(h["dayType"], "outdoor");
+    assert_eq!(h["coffee"], 3);
+    assert_eq!(h["workout"]["type"], "intense");
+    let back = serde_json::to_string(&reloaded.state).unwrap();
+    assert!(back.contains("\"habits\""));
+    let _ = fs::remove_dir_all(path.parent().unwrap());
+  }
+
+  #[test]
+  fn missing_habits_field_still_parses_old_files() {
+    let raw = r#"{"name":"","lang":"it","glassMl":250,"entries":[],"settings":{"enabled":false,"intervalMin":60,"startHour":9,"endHour":22,"autoWindow":true,"autoInterval":true,"lastAdjusted":"","weightKg":null,"activity":"moderate"}}"#;
+    let parsed: AppState = serde_json::from_str(raw).unwrap();
+    assert!(parsed.settings.habits.is_none());
   }
 
   #[test]
